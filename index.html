@@ -69,9 +69,9 @@ main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
 
 .month { content-visibility: auto; contain-intrinsic-size: auto 600px; }
 .month h3 { font-size: 16px; font-weight: 600; margin: 20px 4px 8px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 3px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile, 104px), 1fr)); gap: 3px; }
 @media (max-width: 600px) { main { padding-left: 4px; padding-right: 4px; } .month h3 { margin-left: 8px; } .albums, .accounts { padding-left: 8px; padding-right: 8px; } }
-@media (min-width: 900px) { .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
+
 .tile { position: relative; aspect-ratio: 1; background: var(--surface); overflow: hidden; cursor: pointer; }
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
 .tile img:not([src]) { opacity: 0; }
@@ -118,7 +118,7 @@ main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
 #viewer { position: fixed; inset: 0; z-index: 50; background: #000; display: none; touch-action: none; }
 #viewer.on { display: block; }
 #viewer .stage { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; }
-#viewer .stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; transform-origin: center; transition: transform .15s; }
+#viewer .stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; transform-origin: center; }
 #viewer .top {
   position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 8px;
   padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); color: #fff;
@@ -665,7 +665,7 @@ async function showMap() {
 }
 
 // ---------- visualizzatore ----------
-const V = { list: [], i: 0, zoom: 1, url: null };
+const V = { list: [], i: 0, zoom: 1, tx: 0, ty: 0, url: null };
 function openViewer(list, i) {
   V.list = list; V.i = i;
   $("viewer").classList.add("on");
@@ -681,7 +681,7 @@ function closeViewer() {
 async function showPhoto() {
   const p = V.list[V.i];
   if (!p) return;
-  V.zoom = 1; $("vImg").style.transform = "";
+  resetZoom();
   $("vName").textContent = p.name;
   $("vSub").textContent = [p.taken ? fmtDate.format(p.taken) : "", p.account, `${V.i + 1} di ${V.list.length}`].filter(Boolean).join(" · ");
   $("vPrev").style.visibility = V.i > 0 ? "" : "hidden";
@@ -705,15 +705,31 @@ async function showPhoto() {
   }
 }
 const step = (d) => { const n = V.i + d; if (n >= 0 && n < V.list.length) { V.i = n; showPhoto(); } };
-function toggleZoom(ev) {
+// Zoom: scala attorno al centro + spostamento (tx, ty), sempre dentro i bordi della foto.
+function applyZoom(animate) {
   const img = $("vImg");
-  if (V.zoom > 1) { V.zoom = 1; img.style.transform = ""; return; }
-  V.zoom = 2.5;
-  const r = img.getBoundingClientRect();
-  const ox = ((ev?.clientX ?? r.left + r.width / 2) - r.left) / r.width * 100;
-  const oy = ((ev?.clientY ?? r.top + r.height / 2) - r.top) / r.height * 100;
-  img.style.transformOrigin = `${ox}% ${oy}%`;
-  img.style.transform = `scale(${V.zoom})`;
+  const w = img.offsetWidth, h = img.offsetHeight; // dimensioni a zoom 1 (le trasformazioni non le cambiano)
+  const maxX = Math.max(0, (w * V.zoom - innerWidth) / 2), maxY = Math.max(0, (h * V.zoom - innerHeight) / 2);
+  V.tx = Math.max(-maxX, Math.min(maxX, V.tx));
+  V.ty = Math.max(-maxY, Math.min(maxY, V.ty));
+  img.style.transition = animate ? "transform .15s" : "none";
+  img.style.transformOrigin = "center";
+  img.style.transform = V.zoom > 1 ? `translate(${V.tx}px, ${V.ty}px) scale(${V.zoom})` : "";
+}
+function resetZoom() { V.zoom = 1; V.tx = 0; V.ty = 0; applyZoom(false); }
+/** Ingrandisce (o riduce) tenendo fermo il punto sotto le dita o il mouse. */
+function zoomAt(newZoom, cx, cy) {
+  const z = Math.max(1, Math.min(6, newZoom));
+  const dx = cx - innerWidth / 2 - V.tx, dy = cy - innerHeight / 2 - V.ty;
+  V.tx -= dx * (z / V.zoom - 1);
+  V.ty -= dy * (z / V.zoom - 1);
+  V.zoom = z;
+  if (z === 1) { V.tx = 0; V.ty = 0; }
+}
+function toggleZoom(ev) {
+  if (V.zoom > 1) { V.zoom = 1; V.tx = 0; V.ty = 0; }
+  else zoomAt(2.5, ev?.clientX ?? innerWidth / 2, ev?.clientY ?? innerHeight / 2);
+  applyZoom(true);
 }
 $("vClose").onclick = closeViewer;
 $("vPrev").onclick = () => step(-1);
@@ -726,21 +742,66 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowLeft") step(-1);
   else if (e.key === "ArrowRight") step(1);
 });
-// swipe sul telefono
+// rotellina del mouse / pizzico sul trackpad
+$("viewer").addEventListener("wheel", (e) => {
+  e.preventDefault();
+  zoomAt(V.zoom * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002)), e.clientX, e.clientY);
+  applyZoom(false);
+}, { passive: false });
+// trascinamento col mouse quando la foto è ingrandita
 (() => {
-  let x0 = null, y0 = null, lastTap = 0;
+  let drag = null;
+  $("vImg").addEventListener("mousedown", (e) => { if (V.zoom > 1) { e.preventDefault(); drag = { x: e.clientX, y: e.clientY }; } });
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    V.tx += e.clientX - drag.x; V.ty += e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY }; applyZoom(false);
+  });
+  window.addEventListener("mouseup", () => { drag = null; });
+})();
+// dita sul telefono: pizzico per ingrandire/ridurre, trascina quando è ingrandita, swipe per cambiare foto
+(() => {
+  let start = null, pinch = null, last = null, lastTap = 0, moved = false;
   const stage = $("viewer");
+  const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
   stage.addEventListener("touchstart", (e) => {
-    if (e.touches.length !== 1) { x0 = null; return; }
-    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    if (e.target.closest("button")) return;
+    if (e.touches.length === 2) {
+      const [a, b] = e.touches;
+      pinch = { d: dist(a, b), zoom: V.zoom, cx: (a.clientX + b.clientX) / 2, cy: (a.clientY + b.clientY) / 2 };
+      start = null; moved = true;
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0];
+      start = { x: t.clientX, y: t.clientY }; last = { x: t.clientX, y: t.clientY }; moved = false;
+    }
   }, { passive: true });
+  stage.addEventListener("touchmove", (e) => {
+    if (pinch && e.touches.length === 2) {
+      e.preventDefault();
+      const [a, b] = e.touches;
+      const cx = (a.clientX + b.clientX) / 2, cy = (a.clientY + b.clientY) / 2;
+      zoomAt(pinch.zoom * dist(a, b) / pinch.d, cx, cy);
+      V.tx += cx - pinch.cx; V.ty += cy - pinch.cy; // le dita spostano anche la foto
+      pinch.cx = cx; pinch.cy = cy;
+      applyZoom(false);
+    } else if (last && e.touches.length === 1) {
+      const t = e.touches[0];
+      if (Math.hypot(t.clientX - start.x, t.clientY - start.y) > 10) moved = true;
+      if (V.zoom > 1) {
+        e.preventDefault();
+        V.tx += t.clientX - last.x; V.ty += t.clientY - last.y; applyZoom(false);
+      }
+      last = { x: t.clientX, y: t.clientY };
+    }
+  }, { passive: false });
   stage.addEventListener("touchend", (e) => {
-    if (x0 == null) return;
-    if (e.target.closest("button")) { x0 = null; return; } // tocchi sui pulsanti: normali clic
+    if (e.target.closest("button")) { start = null; return; }
+    if (e.touches.length > 0) { pinch = null; start = null; last = null; return; } // un dito resta giù dopo il pizzico
+    if (pinch) { pinch = null; if (V.zoom < 1.05) { resetZoom(); } return; }
+    if (!start) return;
     const t = e.changedTouches[0];
-    const dx = t.clientX - x0, dy = t.clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+    const dx = t.clientX - start.x, dy = t.clientY - start.y;
+    start = null; last = null;
+    if (!moved) {
       const now = Date.now();
       e.preventDefault(); // evita il doppio clic sintetico del browser
       if (now - lastTap < 300) { toggleZoom(t); lastTap = 0; } else lastTap = now;
@@ -750,6 +811,52 @@ document.addEventListener("keydown", (e) => {
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
     else if (dy > 100 && Math.abs(dy) > Math.abs(dx)) closeViewer();
   });
+})();
+
+
+// ---------- dimensione delle miniature (pizzico sulla griglia, Ctrl + rotellina sul PC) ----------
+const TILE_SIZES = [64, 84, 104, 140, 190, 260, 380];
+let tileLevel = (() => {
+  const raw = localStorage.getItem("fu.tile");
+  const saved = raw === null ? NaN : Number(raw);
+  if (Number.isInteger(saved) && saved >= 0 && saved < TILE_SIZES.length) return saved;
+  return innerWidth >= 900 ? 4 : 2;
+})();
+function setTileLevel(n) {
+  const v = Math.max(0, Math.min(TILE_SIZES.length - 1, n));
+  if (v === tileLevel && document.documentElement.style.getPropertyValue("--tile")) return;
+  // mantiene in vista la foto che si stava guardando
+  const anchor = [...document.querySelectorAll("#main .tile")].find((t) => t.getBoundingClientRect().bottom > 120);
+  tileLevel = v;
+  document.documentElement.style.setProperty("--tile", `${TILE_SIZES[v]}px`);
+  try { localStorage.setItem("fu.tile", String(v)); } catch {}
+  anchor?.scrollIntoView({ block: "start" });
+  if (anchor) window.scrollBy(0, -120);
+}
+setTileLevel(tileLevel);
+(() => {
+  const main = $("main");
+  let pinch = null;
+  const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  main.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) pinch = { d: dist(e.touches[0], e.touches[1]), done: false };
+  }, { passive: true });
+  main.addEventListener("touchmove", (e) => {
+    if (!pinch || e.touches.length !== 2) return;
+    e.preventDefault();
+    if (pinch.done) return; // un livello per ogni pizzico, come in Google Foto
+    const ratio = dist(e.touches[0], e.touches[1]) / pinch.d;
+    if (ratio > 1.25) { setTileLevel(tileLevel + 1); pinch.done = true; }      // dita che si allargano: foto più grandi
+    else if (ratio < 0.8) { setTileLevel(tileLevel - 1); pinch.done = true; }  // dita che si stringono: foto più piccole
+  }, { passive: false });
+  main.addEventListener("touchend", (e) => { if (e.touches.length < 2) pinch = null; });
+  let wheelAcc = 0;
+  window.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey || $("viewer").classList.contains("on") || S.tab === "map") return;
+    e.preventDefault();
+    wheelAcc += e.deltaY;
+    if (Math.abs(wheelAcc) > 60) { setTileLevel(tileLevel + (wheelAcc < 0 ? 1 : -1)); wheelAcc = 0; }
+  }, { passive: false });
 })();
 
 // ---------- caricamento ----------
