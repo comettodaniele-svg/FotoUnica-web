@@ -142,6 +142,19 @@ label.check { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 input[type=text] {
   width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit;
 }
+#mapWrap { position: relative; height: calc(100dvh - var(--chrome, 112px)); }
+#map { position: absolute; inset: 0; background: var(--surface); }
+#mapInfo {
+  position: absolute; left: 12px; bottom: 12px; z-index: 500; background: var(--bg); color: var(--text);
+  padding: 8px 12px; border-radius: 10px; box-shadow: var(--shadow); max-width: calc(100% - 24px);
+}
+#mapInfo:empty { display: none; }
+.pin { width: 54px; height: 54px; border-radius: 10px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.45);
+  background: #ccc center/cover no-repeat; position: relative; }
+.pin span { position: absolute; top: -9px; right: -11px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px;
+  background: #1a73e8; color: #fff; font: 700 12px/24px system-ui, sans-serif; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.leaflet-div-icon.pin-wrap { background: none; border: 0; }
+.leaflet-container { font: inherit; }
 </style>
 </head>
 <body>
@@ -158,10 +171,12 @@ input[type=text] {
 <nav class="tabs" id="tabs">
   <button data-tab="photos" class="active">Foto</button>
   <button data-tab="albums">Album</button>
+  <button data-tab="map">Mappa</button>
   <button data-tab="accounts">Account</button>
 </nav>
 <div id="progressbar"></div>
 <main id="main"></main>
+<div id="mapWrap" hidden><div id="map"></div><div id="mapInfo" class="muted"></div></div>
 
 <div id="drop"><div>Rilascia le cartelle per caricarle</div></div>
 
@@ -347,7 +362,7 @@ async function loadAccount(email) {
   const [folders, files] = await Promise.all([
     listAll(email, `mimeType = '${FOLDER}' and trashed = false`, "id,name"),
     listAll(email, "mimeType contains 'image/' and trashed = false",
-      "id,name,mimeType,thumbnailLink,parents,createdTime,imageMediaMetadata(time)"),
+      "id,name,mimeType,thumbnailLink,parents,createdTime,imageMediaMetadata(time,location)"),
   ]);
   return {
     folders: Object.fromEntries(folders.map((f) => [f.id, f.name])),
@@ -356,6 +371,8 @@ async function loadAccount(email) {
       thumb: f.thumbnailLink || null,
       taken: parseExif(f.imageMediaMetadata?.time) || Date.parse(f.createdTime || "") || 0,
       parent: f.parents?.[0] || null,
+      lat: Number.isFinite(f.imageMediaMetadata?.location?.latitude) ? f.imageMediaMetadata.location.latitude : null,
+      lng: Number.isFinite(f.imageMediaMetadata?.location?.longitude) ? f.imageMediaMetadata.location.longitude : null,
     })),
   };
 }
@@ -380,6 +397,7 @@ async function refresh() {
   }
   photos.sort((a, b) => b.taken - a.taken);
   S.photos = photos;
+  photosVersion++;
   const groups = new Map();
   for (const p of photos) {
     if (!p.parent) continue;
@@ -459,6 +477,10 @@ const el = (tag, props = {}, ...kids) => {
 
 function render() {
   for (const b of $("tabs").children) b.classList.toggle("active", b.dataset.tab === S.tab);
+  const onMap = S.tab === "map";
+  $("mapWrap").hidden = !onMap;
+  $("main").hidden = onMap;
+  if (onMap) return showMap();
   const main = $("main");
   main.replaceChildren();
 
@@ -562,6 +584,80 @@ function renderAccounts(main) {
   }
   wrap.append(el("div", {}, el("button", { className: "btn", textContent: "+ Aggiungi account Google", onclick: () => connect() })));
   main.append(wrap);
+}
+
+
+// ---------- mappa ----------
+// Leaflet + OpenStreetMap, caricati solo quando si apre la mappa.
+const M = { map: null, layer: null, version: -1, loading: null };
+let photosVersion = 0;
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("Mappa non disponibile (sei offline?)"));
+    document.head.append(s);
+  });
+}
+function loadCss(href) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; document.head.append(l); }
+function loadLeaflet() {
+  if (!M.loading) M.loading = (async () => {
+    const cdn = "https://cdnjs.cloudflare.com/ajax/libs";
+    loadCss(`${cdn}/leaflet/1.9.4/leaflet.min.css`);
+    loadCss(`${cdn}/leaflet.markercluster/1.5.3/MarkerCluster.min.css`);
+    await loadScript(`${cdn}/leaflet/1.9.4/leaflet.min.js`);
+    await loadScript(`${cdn}/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js`);
+  })();
+  return M.loading;
+}
+function pinIcon(p, count) {
+  const u = thumbUrl(p, 160);
+  const div = document.createElement("div");
+  div.className = "pin";
+  if (u) div.style.backgroundImage = `url("${u}")`;
+  if (count > 1) { const b = document.createElement("span"); b.textContent = count > 999 ? "999+" : count; div.append(b); }
+  return L.divIcon({ html: div, className: "pin-wrap", iconSize: [54, 54], iconAnchor: [27, 27] });
+}
+async function showMap() {
+  const chrome = document.querySelector("header").offsetHeight + $("tabs").offsetHeight + 3;
+  document.documentElement.style.setProperty("--chrome", `${chrome}px`);
+  try { await loadLeaflet(); } catch (e) { $("mapInfo").textContent = e.message; return; }
+  if (S.tab !== "map") return;
+  if (!M.map) {
+    M.map = L.map("map", { zoomControl: true, worldCopyJump: true }).setView([45, 10], 4);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(M.map);
+  }
+  M.map.invalidateSize();
+  if (M.version === photosVersion) return;
+  M.version = photosVersion;
+  if (M.layer) M.map.removeLayer(M.layer);
+  const geo = S.photos.filter((p) => p.lat != null && p.lng != null && !(p.lat === 0 && p.lng === 0));
+  M.layer = L.markerClusterGroup({
+    showCoverageOnHover: false, maxClusterRadius: 70, spiderfyOnMaxZoom: false, zoomToBoundsOnClick: false,
+    // la copertina del gruppo è la foto più recente
+    iconCreateFunction: (c) => {
+      const ps = c.getAllChildMarkers().map((m) => m.options.photo).sort((a, b) => b.taken - a.taken);
+      return pinIcon(ps[0], ps.length);
+    },
+  });
+  geo.forEach((p) => {
+    const m = L.marker([p.lat, p.lng], { icon: pinIcon(p, 1), photo: p });
+    m.on("click", () => openViewer([p], 0));
+    M.layer.addLayer(m);
+  });
+  // Al massimo ingrandimento (o per poche foto nello stesso punto) apre le foto del gruppo.
+  M.layer.on("clusterclick", (e) => {
+    const ps = e.layer.getAllChildMarkers().map((m) => m.options.photo).sort((a, b) => b.taken - a.taken);
+    const sameSpot = e.layer.getBounds().getNorthEast().distanceTo(e.layer.getBounds().getSouthWest()) < 30;
+    if (sameSpot || M.map.getZoom() >= M.map.getMaxZoom()) openViewer(ps, 0);
+    else e.layer.zoomToBounds({ padding: [40, 40] });
+  });
+  M.map.addLayer(M.layer);
+  if (geo.length) M.map.fitBounds(L.latLngBounds(geo.map((p) => [p.lat, p.lng])), { padding: [40, 40], maxZoom: 12 });
+  $("mapInfo").textContent = !S.photos.length ? ""
+    : geo.length === S.photos.length ? ""
+    : geo.length ? `${geo.length} foto su ${S.photos.length} hanno la posizione.`
+    : "Nessuna foto ha la posizione GPS. Le foto del cellulare di solito ce l'hanno; quelle della fotocamera solo se la posizione era attiva.";
 }
 
 // ---------- visualizzatore ----------
