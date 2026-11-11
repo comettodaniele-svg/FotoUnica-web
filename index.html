@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>FotoUnica</title>
+<title>CloudFoto</title>
 <meta name="theme-color" content="#1a73e8">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="https://accounts.google.com/gsi/client" async></script>
 <style>
 :root {
@@ -45,7 +46,7 @@ header {
   border-bottom: 1px solid var(--border);
 }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 600; margin-right: auto; min-width: 0; }
-.brand img { width: 30px; height: 30px; }
+.brand img { width: 32px; height: 32px; }
 .brand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 nav.tabs { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); overflow-x: auto; }
 nav.tabs button { padding: 7px 16px; border-radius: 999px; color: var(--muted); font-weight: 600; white-space: nowrap; }
@@ -160,7 +161,7 @@ input[type=text] {
 <body>
 
 <header>
-  <div class="brand"><img src="icon.svg" alt=""><span>FotoUnica</span></div>
+  <div class="brand"><img src="logo.png" alt=""><span>CloudFoto</span></div>
   <button class="icon-btn" id="btnUpload" title="Carica cartelle">
     <svg class="i" viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm0-10h4v6h6v-6h4l-7-7-7 7z"/></svg>
   </button>
@@ -510,7 +511,7 @@ function render() {
   }
   if (!list.length) {
     if (!S.loading) main.append(el("div", { className: "empty" },
-      el("h2", { textContent: S.emails.length ? "Nessuna foto trovata" : "Benvenuto in FotoUnica" }),
+      el("h2", { textContent: S.emails.length ? "Nessuna foto trovata" : "Benvenuto in CloudFoto" }),
       el("p", { textContent: S.emails.length
         ? "Le foto devono essere su Google Drive (non su Google Foto). Trascina qui una cartella per caricarla."
         : "Collega i tuoi account Google per vedere tutte le foto in un'unica galleria." }),
@@ -565,7 +566,7 @@ function renderAccounts(main) {
       el("button", { className: "icon-btn", title: "Rimuovi dall'app",
         innerHTML: '<svg class="i" viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
         onclick: () => {
-          if (!confirm(`Rimuovere ${email} da FotoUnica? Le foto restano su Google Drive.`)) return;
+          if (!confirm(`Rimuovere ${email} da CloudFoto? Le foto restano su Google Drive.`)) return;
           S.emails = S.emails.filter((e) => e !== email); delete S.tokens[email]; delete S.info[email];
           saveEmails(); saveTokens(); S.loading = false; refresh();
         } })));
@@ -583,6 +584,9 @@ function renderAccounts(main) {
     wrap.append(card);
   }
   wrap.append(el("div", {}, el("button", { className: "btn", textContent: "+ Aggiungi account Google", onclick: () => connect() })));
+  wrap.append(el("p", { className: "muted" }, "Sul telefono Android: ",
+    el("a", { href: "android/CloudFoto.apk", textContent: "scarica l'app CloudFoto", style: "color:var(--accent)" }),
+    " (si aggiorna da sola)."));
   main.append(wrap);
 }
 

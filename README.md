@@ -1,4 +1,4 @@
-# FotoUnica – versione web
+# CloudFoto – versione web
 
 Le foto di tutti i tuoi account Google Drive in un'unica galleria, dal browser.
 Questo repository contiene solo la pagina web: nessuna foto e nessuna chiave.
@@ -9,4 +9,4 @@ Questo repository contiene solo la pagina web: nessuna foto e nessuna chiave.
 - **Caricamento**: trascina le cartelle nella pagina (o usa il pulsante ↑); ogni cartella va sull'account con più spazio libero
 - Si "installa" da Chrome/Edge: menu ⋮ → *Trasmetti, salva e condividi* → *Installa pagina come app*
 
-L'app per Android è nel repository privato FotoUnica.
+L'app per Android si scarica dalla cartella `android` (e si aggiorna da sola).
