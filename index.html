@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FotoUnica</title>
+<meta name="theme-color" content="#1a73e8">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<script src="https://accounts.google.com/gsi/client" async></script>
+<style>
+:root {
+  --bg: #ffffff; --surface: #f1f3f4; --surface2: #e8eaed; --text: #202124; --muted: #5f6368;
+  --accent: #1a73e8; --accent-text: #ffffff; --danger: #d93025; --border: #dadce0;
+  --shadow: 0 1px 3px rgba(60,64,67,.25);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131314; --surface: #1f1f20; --surface2: #2a2a2c; --text: #e8eaed; --muted: #9aa0a6;
+    --accent: #8ab4f8; --accent-text: #0b1d3a; --danger: #f28b82; --border: #3c4043;
+    --shadow: 0 1px 3px rgba(0,0,0,.6);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-text); font-weight: 600;
+}
+.btn.secondary { background: var(--surface2); color: var(--text); }
+.btn:disabled { opacity: .5; cursor: default; }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; }
+.icon-btn:hover { background: var(--surface2); }
+svg.i { width: 22px; height: 22px; fill: currentColor; }
+
+header {
+  position: sticky; top: 0; z-index: 10; background: var(--bg);
+  display: flex; align-items: center; gap: 8px; padding: 8px 16px; padding-top: max(8px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 600; margin-right: auto; min-width: 0; }
+.brand img { width: 30px; height: 30px; }
+.brand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+nav.tabs { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+nav.tabs button { padding: 7px 16px; border-radius: 999px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+nav.tabs button.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+#progressbar { height: 3px; background: transparent; overflow: hidden; }
+#progressbar.on::after {
+  content: ""; display: block; height: 100%; width: 35%; background: var(--accent);
+  animation: slide 1.1s infinite ease-in-out;
+}
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+
+main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
+.banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0 12px; padding: 12px 16px;
+  border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+.banner p { margin: 0; flex: 1 1 260px; }
+.empty { text-align: center; color: var(--muted); padding: 64px 16px; }
+.empty h2 { color: var(--text); font-weight: 600; }
+
+.month { content-visibility: auto; contain-intrinsic-size: auto 600px; }
+.month h3 { font-size: 16px; font-weight: 600; margin: 20px 4px 8px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 3px; }
+@media (max-width: 600px) { main { padding-left: 4px; padding-right: 4px; } .month h3 { margin-left: 8px; } .albums, .accounts { padding-left: 8px; padding-right: 8px; } }
+@media (min-width: 900px) { .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
+.tile { position: relative; aspect-ratio: 1; background: var(--surface); overflow: hidden; cursor: pointer; }
+.tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
+.tile img:not([src]) { opacity: 0; }
+.tile .ext {
+  position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted);
+  font-weight: 700; font-size: 13px; letter-spacing: .05em;
+}
+.tile:hover img { filter: brightness(.92); }
+
+.albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 18px 14px; padding-top: 12px; }
+.album { cursor: pointer; min-width: 0; }
+.album .tile { border-radius: 14px; }
+.album b { display: block; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.album small { color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.album-head { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.album-head h2 { margin: 0; font-size: 20px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.accounts { max-width: 640px; display: grid; gap: 12px; padding-top: 12px; }
+.card { background: var(--surface); border-radius: 14px; padding: 16px; }
+.card .row { display: flex; align-items: center; gap: 8px; }
+.card .row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meter { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin: 10px 0 6px; }
+.meter > div { height: 100%; background: var(--accent); }
+.muted { color: var(--muted); font-size: 13px; }
+.error { color: var(--danger); font-size: 13px; }
+.total { font-size: 17px; font-weight: 600; }
+
+#drop {
+  position: fixed; inset: 0; z-index: 40; display: none; place-items: center; pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); border: 4px dashed var(--accent);
+}
+#drop.on { display: grid; }
+#drop div { background: var(--bg); padding: 22px 30px; border-radius: 16px; font-size: 18px; font-weight: 600; box-shadow: var(--shadow); }
+
+#upload {
+  position: fixed; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 30; width: min(380px, calc(100vw - 32px));
+  background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px;
+  display: none;
+}
+#upload.on { display: block; }
+#upload .meter { margin: 8px 0 4px; }
+#upload .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+#viewer { position: fixed; inset: 0; z-index: 50; background: #000; display: none; touch-action: none; }
+#viewer.on { display: block; }
+#viewer .stage { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; }
+#viewer .stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; transform-origin: center; transition: transform .15s; }
+#viewer .top {
+  position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); color: #fff;
+  background: linear-gradient(rgba(0,0,0,.65), transparent);
+}
+#viewer .top .meta { min-width: 0; flex: 1; }
+#viewer .top .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#viewer .top .meta .sub { opacity: .7; font-size: 13px; }
+#viewer .icon-btn:hover { background: rgba(255,255,255,.15); }
+#viewer .nav { position: absolute; top: 50%; transform: translateY(-50%); color: #fff; background: rgba(0,0,0,.35); }
+#viewer .nav.prev { left: 12px; } #viewer .nav.next { right: 12px; }
+@media (hover: none) { #viewer .nav { display: none; } }
+
+dialog {
+  border: 0; border-radius: 16px; background: var(--bg); color: var(--text); padding: 22px; width: min(460px, calc(100vw - 32px));
+  box-shadow: var(--shadow);
+}
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog h3 { margin-top: 0; }
+dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+label.check { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+input[type=text] {
+  width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><img src="icon.svg" alt=""><span>FotoUnica</span></div>
+  <button class="icon-btn" id="btnUpload" title="Carica cartelle">
+    <svg class="i" viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm0-10h4v6h6v-6h4l-7-7-7 7z"/></svg>
+  </button>
+  <button class="icon-btn" id="btnRefresh" title="Aggiorna">
+    <svg class="i" viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+  </button>
+</header>
+<nav class="tabs" id="tabs">
+  <button data-tab="photos" class="active">Foto</button>
+  <button data-tab="albums">Album</button>
+  <button data-tab="accounts">Account</button>
+</nav>
+<div id="progressbar"></div>
+<main id="main"></main>
+
+<div id="drop"><div>Rilascia le cartelle per caricarle</div></div>
+
+<div id="upload">
+  <div class="row"><b id="upTitle">Caricamento</b><button class="icon-btn" id="upClose" title="Chiudi" style="width:32px;height:32px">✕</button></div>
+  <div class="meter"><div id="upBar" style="width:0"></div></div>
+  <div class="muted" id="upText"></div>
+</div>
+
+<div id="viewer">
+  <div class="stage"><img id="vImg" alt=""></div>
+  <div class="top">
+    <button class="icon-btn" id="vClose" title="Chiudi (Esc)">
+      <svg class="i" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </button>
+    <div class="meta"><div id="vName"></div><div class="sub" id="vSub"></div></div>
+    <button class="icon-btn" id="vOpen" title="Apri in Google Drive">
+      <svg class="i" viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+    </button>
+  </div>
+  <button class="icon-btn nav prev" id="vPrev" title="Precedente">
+    <svg class="i" viewBox="0 0 24 24"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+  </button>
+  <button class="icon-btn nav next" id="vNext" title="Successiva">
+    <svg class="i" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+  </button>
+</div>
+
+<dialog id="dlgUpload">
+  <h3>Carica foto</h3>
+  <p class="muted" style="margin-top:0">Ogni cartella diventa un album. Le cartelle vanno sull'account con più spazio libero.
+    Puoi anche trascinare le cartelle direttamente nella pagina.</p>
+  <label class="check"><input type="checkbox" id="skipRaw" checked> Salta i file RAW (ARW, DNG, CR2, NEF…)</label>
+  <div class="actions">
+    <button class="btn secondary" id="dlgCancel">Annulla</button>
+    <button class="btn secondary" id="pickFiles">Scegli foto</button>
+    <button class="btn" id="pickFolder">Scegli cartella</button>
+  </div>
+  <input type="file" id="inFolder" webkitdirectory multiple hidden>
+  <input type="file" id="inFiles" accept="image/*" multiple hidden>
+</dialog>
+
+<dialog id="dlgSetup">
+  <h3>Configurazione</h3>
+  <p class="muted" style="margin-top:0">Incolla il Client ID del client "Applicazione web" creato su Google Cloud.</p>
+  <input type="text" id="setupId" placeholder="….apps.googleusercontent.com">
+  <div class="actions"><button class="btn" id="setupSave">Salva</button></div>
+</dialog>
+
+<script>
+"use strict";
+// Client OAuth "Applicazione web" (Google Cloud → progetto FotoUnica). Non è un segreto.
+const CLIENT_ID_DEFAULT = "";
+const SCOPES = "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file";
+const API = "https://www.googleapis.com/drive/v3";
+const UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
+const FOLDER = "application/vnd.google-apps.folder";
+const RAW_EXT = ["arw","srf","sr2","dng","cr2","cr3","nef","nrw","raf","orf","rw2","pef","srw","raw"];
+const IMG_EXT = ["jpg","jpeg","png","gif","webp","heic","heif","bmp","tif","tiff", ...RAW_EXT];
+const DECODABLE = ["image/jpeg","image/png","image/gif","image/webp","image/bmp"];
+
+const $ = (id) => document.getElementById(id);
+const clientId = () => CLIENT_ID_DEFAULT || localStorage.getItem("fu.clientId") || "";
+
+// ---------- stato ----------
+const S = {
+  emails: JSON.parse(localStorage.getItem("fu.accounts") || "[]"),
+  tokens: JSON.parse(sessionStorage.getItem("fu.tokens") || "{}"), // email -> {token, exp}
+  info: {},        // email -> {usage, limit, error}
+  photos: [],
+  albums: [],
+  tab: "photos",
+  album: null,
+  loading: false,
+};
+const saveEmails = () => localStorage.setItem("fu.accounts", JSON.stringify(S.emails));
+const saveTokens = () => sessionStorage.setItem("fu.tokens", JSON.stringify(S.tokens));
+const tokenOf = (email) => {
+  const t = S.tokens[email];
+  return t && t.exp > Date.now() + 60_000 ? t.token : null;
+};
+const connected = () => S.emails.filter(tokenOf);
+const disconnected = () => S.emails.filter((e) => !tokenOf(e));
+
+// ---------- accesso Google ----------
+function waitForGis() {
+  return new Promise((resolve, reject) => {
+    let n = 0;
+    const tick = () => {
+      if (window.google?.accounts?.oauth2) return resolve();
+      if (++n > 100) return reject(new Error("Impossibile caricare l'accesso Google"));
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
+}
+
+/** Apre la finestra di Google. Deve partire da un clic dell'utente. */
+function requestToken(hint) {
+  return new Promise((resolve, reject) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: clientId(),
+      scope: SCOPES,
+      hint: hint || undefined,
+      prompt: hint ? "" : "select_account",
+      callback: (r) => {
+        if (r.error) return reject(new Error(r.error_description || r.error));
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, ...SCOPES.split(" "))) {
+          return reject(new Error("Serve il permesso di accesso a Google Drive: spunta tutte le caselle."));
+        }
+        resolve(r);
+      },
+      error_callback: (e) => reject(new Error(e.type === "popup_closed" ? "Finestra chiusa" : (e.message || e.type))),
+    });
+    client.requestAccessToken();
+  });
+}
+
+async function connect(hint) {
+  if (!clientId()) return openSetup();
+  try {
+    await waitForGis();
+    const r = await requestToken(hint);
+    const about = await fetch(`${API}/about?fields=user(emailAddress)`, {
+      headers: { Authorization: `Bearer ${r.access_token}` },
+    }).then((x) => x.json());
+    const email = about?.user?.emailAddress;
+    if (!email) throw new Error("Account non riconosciuto");
+    S.tokens[email] = { token: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000 };
+    saveTokens();
+    if (!S.emails.includes(email)) { S.emails.push(email); saveEmails(); }
+    toast(`Collegato ${email}`);
+    refresh();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+class Expired extends Error {}
+
+async function api(email, url, opts = {}) {
+  const token = tokenOf(email);
+  if (!token) throw new Expired(email);
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } });
+  if (r.status === 401) {
+    delete S.tokens[email]; saveTokens();
+    throw new Expired(email);
+  }
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    let msg = t;
+    try { msg = JSON.parse(t).error.message; } catch {}
+    throw new Error(`Google Drive ${r.status}: ${String(msg).slice(0, 200)}`);
+  }
+  return r;
+}
+const apiJson = (email, url, opts) => api(email, url, opts).then((r) => r.json());
+
+async function listAll(email, q, fields) {
+  const out = [];
+  let pageToken = "";
+  do {
+    const p = new URLSearchParams({ q, fields: `nextPageToken,files(${fields})`, pageSize: "1000", spaces: "drive" });
+    if (pageToken) p.set("pageToken", pageToken);
+    const j = await apiJson(email, `${API}/files?${p}`);
+    out.push(...(j.files || []));
+    pageToken = j.nextPageToken || "";
+  } while (pageToken);
+  return out;
+}
+
+function parseExif(s) {
+  const m = /^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(s || "");
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  return Number.isFinite(d) ? d : null;
+}
+
+async function loadAccount(email) {
+  const about = await apiJson(email, `${API}/about?fields=storageQuota(limit,usage)`);
+  const q = about.storageQuota || {};
+  S.info[email] = { usage: Number(q.usage || 0), limit: q.limit ? Number(q.limit) : Infinity };
+  const [folders, files] = await Promise.all([
+    listAll(email, `mimeType = '${FOLDER}' and trashed = false`, "id,name"),
+    listAll(email, "mimeType contains 'image/' and trashed = false",
+      "id,name,mimeType,thumbnailLink,parents,createdTime,imageMediaMetadata(time)"),
+  ]);
+  return {
+    folders: Object.fromEntries(folders.map((f) => [f.id, f.name])),
+    photos: files.map((f) => ({
+      id: f.id, account: email, name: f.name || "", mime: f.mimeType || "",
+      thumb: f.thumbnailLink || null,
+      taken: parseExif(f.imageMediaMetadata?.time) || Date.parse(f.createdTime || "") || 0,
+      parent: f.parents?.[0] || null,
+    })),
+  };
+}
+
+async function refresh() {
+  if (S.loading) return;
+  S.loading = true; $("progressbar").classList.add("on"); render();
+  const results = await Promise.all(connected().map(async (email) => {
+    try { return await loadAccount(email); }
+    catch (e) {
+      if (!(e instanceof Expired)) S.info[email] = { ...(S.info[email] || {}), error: e.message };
+      return null;
+    }
+  }));
+  const seen = new Set();
+  const photos = [];
+  const folders = {};
+  for (const r of results) {
+    if (!r) continue;
+    Object.assign(folders, r.folders);
+    for (const p of r.photos) if (!seen.has(p.id)) { seen.add(p.id); photos.push(p); }
+  }
+  photos.sort((a, b) => b.taken - a.taken);
+  S.photos = photos;
+  const groups = new Map();
+  for (const p of photos) {
+    if (!p.parent) continue;
+    if (!groups.has(p.parent)) groups.set(p.parent, []);
+    groups.get(p.parent).push(p);
+  }
+  S.albums = [...groups].map(([id, list]) => ({ id, name: folders[id] || "Senza nome", account: list[0].account, photos: list }))
+    .sort((a, b) => b.photos[0].taken - a.photos[0].taken);
+  if (S.album) S.album = S.albums.find((a) => a.id === S.album.id) || null;
+  S.loading = false; $("progressbar").classList.remove("on");
+  render();
+}
+
+// ---------- miniature ----------
+const thumbUrl = (p, size) => p.thumb ? (/=s\d+$/.test(p.thumb) ? p.thumb.replace(/=s\d+$/, `=s${size}`) : p.thumb) : null;
+const mediaUrl = (p) => `${API}/files/${p.id}?alt=media`;
+const extOf = (name) => (name.split(".").pop() || "").toLowerCase();
+
+// Ripiego: scarica l'originale e lo rimpicciolisce nel browser (max 4 alla volta).
+const fallbackQueue = [];
+let fallbackActive = 0;
+function fallbackThumb(img, p) {
+  fallbackQueue.push([img, p]);
+  pumpFallback();
+}
+function pumpFallback() {
+  while (fallbackActive < 4 && fallbackQueue.length) {
+    const [img, p] = fallbackQueue.shift();
+    if (!img.isConnected) continue;
+    fallbackActive++;
+    (async () => {
+      try {
+        if (!DECODABLE.includes(p.mime)) throw new Error("formato");
+        const blob = await api(p.account, mediaUrl(p)).then((r) => r.blob());
+        const bmp = await createImageBitmap(blob);
+        const s = 400 / Math.min(bmp.width, bmp.height);
+        const c = document.createElement("canvas");
+        c.width = Math.round(bmp.width * Math.min(1, s)); c.height = Math.round(bmp.height * Math.min(1, s));
+        c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+        bmp.close?.();
+        img.src = c.toDataURL("image/jpeg", .82);
+      } catch {
+        img.remove();
+        const label = document.createElement("div");
+        label.className = "ext"; label.textContent = extOf(p.name).toUpperCase() || "FOTO";
+        img.parentElement?.appendChild(label);
+      } finally {
+        fallbackActive--; pumpFallback();
+      }
+    })();
+  }
+}
+
+function tile(p, onOpen) {
+  const d = document.createElement("div");
+  d.className = "tile"; d.title = p.name;
+  const img = document.createElement("img");
+  img.loading = "lazy"; img.decoding = "async"; img.alt = p.name; img.referrerPolicy = "no-referrer";
+  img.onerror = () => { img.onerror = null; img.removeAttribute("src"); fallbackThumb(img, p); };
+  const u = thumbUrl(p, 400);
+  if (u) img.src = u; else fallbackThumb(img, p);
+  d.appendChild(img);
+  d.onclick = onOpen;
+  return d;
+}
+
+// ---------- interfaccia ----------
+const fmtMonth = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" });
+const fmtDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const monthLabel = (t) => t ? fmtMonth.format(t).replace(/^./, (c) => c.toUpperCase()) : "Data sconosciuta";
+const gb = (b) => b === Infinity ? "illimitato" : `${(b / 1e9).toLocaleString("it-IT", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} GB`;
+const el = (tag, props = {}, ...kids) => {
+  const e = Object.assign(document.createElement(tag), props);
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+};
+
+function render() {
+  for (const b of $("tabs").children) b.classList.toggle("active", b.dataset.tab === S.tab);
+  const main = $("main");
+  main.replaceChildren();
+
+  const missing = disconnected();
+  if (!clientId()) {
+    main.append(el("div", { className: "banner" },
+      el("p", { textContent: "Prima di iniziare serve il Client ID di Google Cloud." }),
+      el("button", { className: "btn", textContent: "Configura", onclick: openSetup })));
+  } else if (missing.length) {
+    main.append(el("div", { className: "banner" },
+      el("p", { textContent: missing.length === 1
+        ? `Ricollega ${missing[0]} per vedere le sue foto.`
+        : `Ricollega ${missing.length} account per vedere tutte le foto (uno alla volta).` }),
+      el("button", { className: "btn", textContent: `Collega ${missing[0]}`, onclick: () => connect(missing[0]) })));
+  }
+
+  if (S.tab === "accounts") return renderAccounts(main);
+  if (S.tab === "albums" && !S.album) return renderAlbums(main);
+
+  const list = S.tab === "albums" ? S.album.photos : S.photos;
+  if (S.tab === "albums") {
+    main.append(el("div", { className: "album-head" },
+      el("button", { className: "icon-btn", title: "Indietro", innerHTML: '<svg class="i" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
+        onclick: () => { S.album = null; render(); } }),
+      el("h2", { textContent: S.album.name }),
+      el("span", { className: "muted", textContent: `${S.album.photos.length} foto` })));
+  }
+  if (!list.length) {
+    if (!S.loading) main.append(el("div", { className: "empty" },
+      el("h2", { textContent: S.emails.length ? "Nessuna foto trovata" : "Benvenuto in FotoUnica" }),
+      el("p", { textContent: S.emails.length
+        ? "Le foto devono essere su Google Drive (non su Google Foto). Trascina qui una cartella per caricarla."
+        : "Collega i tuoi account Google per vedere tutte le foto in un'unica galleria." }),
+      S.emails.length ? null : el("button", { className: "btn", textContent: "Collega un account", onclick: () => connect() })));
+    return;
+  }
+  let current = null, grid = null;
+  list.forEach((p, i) => {
+    const m = monthLabel(p.taken);
+    if (m !== current) {
+      current = m;
+      grid = el("div", { className: "grid" });
+      main.append(el("section", { className: "month" }, el("h3", { textContent: m }), grid));
+    }
+    grid.append(tile(p, () => openViewer(list, i)));
+  });
+}
+
+function renderAlbums(main) {
+  if (!S.albums.length) {
+    if (!S.loading) main.append(el("div", { className: "empty" },
+      el("h2", { textContent: "Nessun album" }),
+      el("p", { textContent: "Ogni cartella di Google Drive con delle foto diventa un album." })));
+    return;
+  }
+  const wrap = el("div", { className: "albums" });
+  for (const a of S.albums) {
+    const open = () => { S.album = a; render(); window.scrollTo(0, 0); };
+    const t = tile(a.photos[0], null);
+    wrap.append(el("div", { className: "album", onclick: open }, t,
+      el("b", { textContent: a.name }),
+      el("small", { textContent: `${a.photos.length} foto · ${a.account.split("@")[0]}` })));
+  }
+  main.append(wrap);
+}
+
+function renderAccounts(main) {
+  const wrap = el("div", { className: "accounts" });
+  const ok = S.emails.filter((e) => S.info[e] && !S.info[e].error && S.info[e].limit !== Infinity && tokenOf(e));
+  if (ok.length) {
+    const free = ok.reduce((s, e) => s + Math.max(0, S.info[e].limit - S.info[e].usage), 0);
+    const tot = ok.reduce((s, e) => s + S.info[e].limit, 0);
+    wrap.append(el("div", { className: "total", textContent: `Spazio totale: ${gb(free)} liberi su ${gb(tot)}` }));
+  }
+  wrap.append(el("p", { className: "muted", style: "margin:0",
+    textContent: "Le foto di tutti gli account vengono mostrate insieme. I caricamenti vanno sull'account con più spazio libero." }));
+  for (const email of S.emails) {
+    const info = S.info[email];
+    const card = el("div", { className: "card" });
+    card.append(el("div", { className: "row" },
+      el("b", { textContent: email }),
+      el("button", { className: "icon-btn", title: "Rimuovi dall'app",
+        innerHTML: '<svg class="i" viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
+        onclick: () => {
+          if (!confirm(`Rimuovere ${email} da FotoUnica? Le foto restano su Google Drive.`)) return;
+          S.emails = S.emails.filter((e) => e !== email); delete S.tokens[email]; delete S.info[email];
+          saveEmails(); saveTokens(); S.loading = false; refresh();
+        } })));
+    if (!tokenOf(email)) {
+      card.append(el("button", { className: "btn secondary", textContent: "Collega", onclick: () => connect(email) }));
+    } else if (info?.error) {
+      card.append(el("div", { className: "error", textContent: `Errore: ${info.error}` }));
+    } else if (info) {
+      const frac = info.limit === Infinity ? 0 : Math.min(1, info.usage / info.limit);
+      card.append(el("div", { className: "meter" }, el("div", { style: `width:${(frac * 100).toFixed(1)}%` })),
+        el("div", { className: "muted", textContent: `${gb(info.usage)} usati su ${gb(info.limit)}` }));
+    } else {
+      card.append(el("div", { className: "muted", textContent: "Caricamento…" }));
+    }
+    wrap.append(card);
+  }
+  wrap.append(el("div", {}, el("button", { className: "btn", textContent: "+ Aggiungi account Google", onclick: () => connect() })));
+  main.append(wrap);
+}
+
+// ---------- visualizzatore ----------
+const V = { list: [], i: 0, zoom: 1, url: null };
+function openViewer(list, i) {
+  V.list = list; V.i = i;
+  $("viewer").classList.add("on");
+  document.body.style.overflow = "hidden";
+  showPhoto();
+}
+function closeViewer() {
+  $("viewer").classList.remove("on");
+  document.body.style.overflow = "";
+  if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
+  $("vImg").removeAttribute("src");
+}
+async function showPhoto() {
+  const p = V.list[V.i];
+  if (!p) return;
+  V.zoom = 1; $("vImg").style.transform = "";
+  $("vName").textContent = p.name;
+  $("vSub").textContent = [p.taken ? fmtDate.format(p.taken) : "", p.account, `${V.i + 1} di ${V.list.length}`].filter(Boolean).join(" · ");
+  $("vPrev").style.visibility = V.i > 0 ? "" : "hidden";
+  $("vNext").style.visibility = V.i < V.list.length - 1 ? "" : "hidden";
+  const img = $("vImg");
+  img.referrerPolicy = "no-referrer";
+  const preview = thumbUrl(p, 1600);
+  if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
+  if (preview) img.src = preview; else img.removeAttribute("src");
+  if (!DECODABLE.includes(p.mime)) {
+    if (!preview) img.alt = "Anteprima non disponibile";
+    return;
+  }
+  try {
+    const blob = await api(p.account, mediaUrl(p)).then((r) => r.blob());
+    if (V.list[V.i] !== p) return; // l'utente è già passato a un'altra foto
+    V.url = URL.createObjectURL(blob);
+    img.src = V.url;
+  } catch (e) {
+    if (!preview) toast(e.message, true);
+  }
+}
+const step = (d) => { const n = V.i + d; if (n >= 0 && n < V.list.length) { V.i = n; showPhoto(); } };
+function toggleZoom(ev) {
+  const img = $("vImg");
+  if (V.zoom > 1) { V.zoom = 1; img.style.transform = ""; return; }
+  V.zoom = 2.5;
+  const r = img.getBoundingClientRect();
+  const ox = ((ev?.clientX ?? r.left + r.width / 2) - r.left) / r.width * 100;
+  const oy = ((ev?.clientY ?? r.top + r.height / 2) - r.top) / r.height * 100;
+  img.style.transformOrigin = `${ox}% ${oy}%`;
+  img.style.transform = `scale(${V.zoom})`;
+}
+$("vClose").onclick = closeViewer;
+$("vPrev").onclick = () => step(-1);
+$("vNext").onclick = () => step(1);
+$("vOpen").onclick = () => window.open(`https://drive.google.com/file/d/${V.list[V.i].id}/view`, "_blank", "noopener");
+$("vImg").ondblclick = toggleZoom;
+document.addEventListener("keydown", (e) => {
+  if (!$("viewer").classList.contains("on")) return;
+  if (e.key === "Escape") closeViewer();
+  else if (e.key === "ArrowLeft") step(-1);
+  else if (e.key === "ArrowRight") step(1);
+});
+// swipe sul telefono
+(() => {
+  let x0 = null, y0 = null, lastTap = 0;
+  const stage = $("viewer");
+  stage.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+  }, { passive: true });
+  stage.addEventListener("touchend", (e) => {
+    if (x0 == null) return;
+    if (e.target.closest("button")) { x0 = null; return; } // tocchi sui pulsanti: normali clic
+    const t = e.changedTouches[0];
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+      const now = Date.now();
+      e.preventDefault(); // evita il doppio clic sintetico del browser
+      if (now - lastTap < 300) { toggleZoom(t); lastTap = 0; } else lastTap = now;
+      return;
+    }
+    if (V.zoom > 1) return;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
+    else if (dy > 100 && Math.abs(dy) > Math.abs(dx)) closeViewer();
+  });
+})();
+
+// ---------- caricamento ----------
+let uploading = false;
+
+function wanted(name, skipRaw) {
+  const ext = extOf(name);
+  if (!IMG_EXT.includes(ext)) return false;
+  return !(skipRaw && RAW_EXT.includes(ext));
+}
+
+async function readDropped(items) {
+  const out = []; // {file, path: [cartelle...]}
+  const readAll = (reader) => new Promise((res, rej) => {
+    const acc = [];
+    const next = () => reader.readEntries((batch) => { if (!batch.length) return res(acc); acc.push(...batch); next(); }, rej);
+    next();
+  });
+  async function walk(entry, path) {
+    if (entry.isFile) {
+      const file = await new Promise((res, rej) => entry.file(res, rej));
+      out.push({ file, path });
+    } else if (entry.isDirectory) {
+      for (const child of await readAll(entry.createReader())) await walk(child, [...path, entry.name]);
+    }
+  }
+  for (const entry of items) await walk(entry, []);
+  return out;
+}
+
+function startUpload(entries) {
+  const skipRaw = $("skipRaw").checked;
+  const looseName = `Caricate ${new Date().toLocaleDateString("it-IT").replaceAll("/", "-")}`;
+  const files = entries.filter((x) => wanted(x.file.name, skipRaw))
+    .map((x) => ({ ...x, path: x.path.length ? x.path : [looseName] }));
+  if (!files.length) return toast("Nessuna foto da caricare in quello che hai scelto.", true);
+  if (uploading) return toast("C'è già un caricamento in corso.", true);
+  uploadFiles(files);
+}
+
+async function uploadFiles(files) {
+  const usable = connected().filter((e) => S.info[e] && !S.info[e].error);
+  if (!usable.length) return toast("Collega almeno un account prima di caricare.", true);
+  uploading = true;
+  const box = $("upload"); box.classList.add("on");
+  $("upClose").disabled = true;
+  const free = Object.fromEntries(usable.map((e) => [e, S.info[e].limit - S.info[e].usage]));
+
+  // Raggruppa per cartella principale: ogni gruppo va interamente su un solo account.
+  const groups = new Map();
+  for (const f of files) {
+    const k = f.path[0];
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(f);
+  }
+  const total = files.length;
+  let done = 0, failed = 0;
+  const progress = (msg) => {
+    $("upTitle").textContent = `Caricamento ${done}/${total}`;
+    $("upBar").style.width = `${(done / total * 100).toFixed(1)}%`;
+    if (msg) $("upText").textContent = msg;
+  };
+  progress("Preparazione…");
+
+  for (const [top, list] of groups) {
+    const size = list.reduce((s, f) => s + f.file.size, 0);
+    const fits = usable.filter((e) => free[e] >= size + 50e6).sort((a, b) => free[b] - free[a]);
+    const target = fits[0] || usable.slice().sort((a, b) => free[b] - free[a])[0];
+    if (!fits.length) toast(`"${top}" non entra per intero in nessun account: la carico su ${target}, ma potrebbe riempirlo.`, true);
+    const folderIds = new Map(); // "a/b" -> id
+    const ensureFolder = async (path) => {
+      const key = path.join("/");
+      if (folderIds.has(key)) return folderIds.get(key);
+      const parent = path.length > 1 ? await ensureFolder(path.slice(0, -1)) : null;
+      const meta = { name: path[path.length - 1], mimeType: FOLDER, ...(parent ? { parents: [parent] } : {}) };
+      const j = await apiJson(target, `${API}/files?fields=id`, {
+        method: "POST", headers: { "Content-Type": "application/json; charset=UTF-8" }, body: JSON.stringify(meta),
+      });
+      folderIds.set(key, j.id);
+      return j.id;
+    };
+    // le cartelle si creano una alla volta, i file 3 alla volta
+    for (const f of list) f.folderId = await ensureFolder(f.path).catch((e) => { toast(e.message, true); return null; });
+    let idx = 0;
+    const worker = async () => {
+      while (idx < list.length) {
+        const f = list[idx++];
+        progress(`${f.file.name} → ${target}`);
+        try {
+          if (!f.folderId) throw new Error("cartella non creata");
+          await uploadOne(target, f.folderId, f.file);
+          free[target] -= f.file.size;
+        } catch (e) {
+          failed++;
+          if (e instanceof Expired) { toast(`Accesso scaduto per ${target}: ricollegalo e riprova.`, true); idx = list.length; }
+        }
+        done++; progress();
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+  }
+  $("upTitle").textContent = failed ? `Caricate ${total - failed} foto, ${failed} non riuscite` : `Caricate ${total} foto`;
+  $("upText").textContent = "Puoi chiudere questo riquadro.";
+  $("upBar").style.width = "100%";
+  $("upClose").disabled = false;
+  uploading = false;
+  refresh();
+}
+
+async function uploadOne(email, folderId, file) {
+  const boundary = "fotounica" + Math.random().toString(36).slice(2);
+  const meta = { name: file.name, parents: [folderId] };
+  const type = file.type || "application/octet-stream";
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`,
+    `--${boundary}\r\nContent-Type: ${type}\r\n\r\n`, file, `\r\n--${boundary}--`,
+  ]);
+  await api(email, `${UPLOAD_API}?uploadType=multipart&fields=id`, {
+    method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body,
+  });
+}
+
+$("btnUpload").onclick = () => {
+  if (!connected().length) return toast("Collega almeno un account prima di caricare.", true);
+  $("dlgUpload").showModal();
+};
+$("dlgCancel").onclick = () => $("dlgUpload").close();
+$("pickFolder").onclick = () => $("inFolder").click();
+$("pickFiles").onclick = () => $("inFiles").click();
+$("inFolder").onchange = (e) => {
+  const list = [...e.target.files].map((file) => {
+    const parts = (file.webkitRelativePath || file.name).split("/");
+    return { file, path: parts.slice(0, -1) };
+  });
+  e.target.value = ""; $("dlgUpload").close(); startUpload(list);
+};
+$("inFiles").onchange = (e) => {
+  const list = [...e.target.files].map((file) => ({ file, path: [] }));
+  e.target.value = ""; $("dlgUpload").close(); startUpload(list);
+};
+$("upClose").onclick = () => $("upload").classList.remove("on");
+
+// trascinamento cartelle nella pagina
+(() => {
+  let depth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  window.addEventListener("dragenter", (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; $("drop").classList.add("on"); });
+  window.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; $("drop").classList.remove("on"); } });
+  window.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener("drop", async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); depth = 0; $("drop").classList.remove("on");
+    if (!connected().length) return toast("Collega almeno un account prima di caricare.", true);
+    const entries = [...e.dataTransfer.items].map((i) => i.webkitGetAsEntry?.()).filter(Boolean);
+    try { startUpload(await readDropped(entries)); } catch (err) { toast(err.message, true); }
+  });
+})();
+
+// ---------- varie ----------
+function toast(msg, isError) {
+  const t = el("div", { textContent: msg });
+  Object.assign(t.style, {
+    position: "fixed", left: "50%", bottom: "24px", transform: "translateX(-50%)", zIndex: 60,
+    background: isError ? "var(--danger)" : "#323232", color: isError ? "#fff" : "#fff",
+    padding: "12px 18px", borderRadius: "10px", maxWidth: "min(560px, calc(100vw - 32px))", boxShadow: "var(--shadow)",
+  });
+  document.body.append(t);
+  setTimeout(() => t.remove(), isError ? 6000 : 3000);
+}
+
+function openSetup() {
+  $("setupId").value = clientId();
+  $("dlgSetup").showModal();
+}
+$("setupSave").onclick = () => {
+  const v = $("setupId").value.trim();
+  if (!/\.apps\.googleusercontent\.com$/.test(v)) return toast("Il Client ID deve finire con .apps.googleusercontent.com", true);
+  localStorage.setItem("fu.clientId", v);
+  $("dlgSetup").close(); render();
+};
+
+$("tabs").onclick = (e) => {
+  const b = e.target.closest("button[data-tab]");
+  if (!b) return;
+  S.tab = b.dataset.tab; S.album = null; render(); window.scrollTo(0, 0);
+};
+$("btnRefresh").onclick = () => refresh();
+
+render();
+if (connected().length) refresh();
+</script>
+</body>
+</html>
