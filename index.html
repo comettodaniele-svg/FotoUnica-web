@@ -81,6 +81,32 @@ main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
   font-weight: 700; font-size: 13px; letter-spacing: .05em;
 }
 .tile:hover img { filter: brightness(.92); }
+.tile .badge { position: absolute; left: 5px; top: 5px; z-index: 1; color: #fff; background: rgba(0,0,0,.5); border-radius: 8px;
+  padding: 1px 6px; font-size: 11px; font-weight: 700; pointer-events: none; }
+.collections { display: flex; gap: 10px; overflow-x: auto; padding: 10px 2px 4px; }
+.collections .album { flex: 0 0 120px; }
+.collections .icon { aspect-ratio: 1; border-radius: 14px; display: grid; place-items: center; font-size: 34px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
+.section-title { font-size: 16px; font-weight: 600; margin: 18px 4px 4px; }
+.memories { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 8px; }
+.memory { flex: 0 0 140px; position: relative; border-radius: 14px; overflow: hidden; cursor: pointer; }
+.memory span { position: absolute; left: 0; bottom: 0; color: #fff; font-weight: 700; padding: 4px 10px; background: rgba(0,0,0,.45);
+  border-top-right-radius: 10px; }
+.searchbar { display: flex; gap: 8px; margin: 10px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+.chip { padding: 6px 14px; border-radius: 999px; background: var(--surface2); font-weight: 600; }
+.dup { background: var(--surface); border-radius: 14px; padding: 12px; margin: 10px 0; }
+.dup .row { display: flex; gap: 6px; }
+.dup .tile { width: 80px; border-radius: 8px; }
+#viewer .actions {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-evenly; flex-wrap: wrap;
+  padding: 8px 6px; padding-bottom: max(8px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,.7));
+}
+#viewer .actions button { color: #fff; display: grid; justify-items: center; gap: 2px; font-size: 12px; padding: 4px 8px; min-width: 64px; border-radius: 10px; }
+#viewer .actions button:hover { background: rgba(255,255,255,.15); }
+#viewer .actions b { font-size: 20px; line-height: 1; }
+#vVid { max-width: 100%; max-height: calc(100% - 80px); display: none; }
+#vMsg { color: #fff; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; display: none; }
 
 .albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 18px 14px; padding-top: 12px; }
 .album { cursor: pointer; min-width: 0; }
@@ -179,6 +205,9 @@ input[type=text] {
 
 <header>
   <div class="brand"><img src="logo.png" alt=""><span>CloudFoto</span></div>
+  <button class="icon-btn" id="btnSearch" title="Cerca">
+    <svg class="i" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+  </button>
   <button class="icon-btn" id="btnUpload" title="Carica cartelle">
     <svg class="i" viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm0-10h4v6h6v-6h4l-7-7-7 7z"/></svg>
   </button>
@@ -207,12 +236,16 @@ input[type=text] {
 </div>
 
 <div id="viewer">
-  <div class="stage"><img id="vImg" alt=""></div>
+  <div class="stage"><img id="vImg" alt=""><video id="vVid" controls playsinline></video><div id="vMsg"></div></div>
+  <div class="actions" id="vActions"></div>
   <div class="top">
     <button class="icon-btn" id="vClose" title="Chiudi (Esc)">
       <svg class="i" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
     </button>
     <div class="meta"><div id="vName"></div><div class="sub" id="vSub"></div></div>
+    <button class="icon-btn" id="vInfo" title="Informazioni">
+      <svg class="i" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+    </button>
     <button class="icon-btn" id="vOpen" title="Apri in Google Drive">
       <svg class="i" viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
     </button>
@@ -245,6 +278,18 @@ input[type=text] {
   <div class="actions"><button class="btn secondary" onclick="this.closest('dialog').close()">Annulla</button></div>
 </dialog>
 
+<dialog id="dlgMenu">
+  <h3 id="menuTitle"></h3>
+  <div id="menuChoices" style="display:grid;gap:8px"></div>
+  <div class="actions"><button class="btn secondary" onclick="this.closest('dialog').close()">Chiudi</button></div>
+</dialog>
+
+<dialog id="dlgInfo">
+  <h3>Informazioni</h3>
+  <div id="infoBody" style="display:grid;gap:8px"></div>
+  <div class="actions"><button class="btn" onclick="this.closest('dialog').close()">Chiudi</button></div>
+</dialog>
+
 <dialog id="dlgSetup">
   <h3>Configurazione</h3>
   <p class="muted" style="margin-top:0">Incolla il Client ID del client "Applicazione web" creato su Google Cloud.</p>
@@ -256,7 +301,7 @@ input[type=text] {
 "use strict";
 // Client OAuth "Applicazione web" (Google Cloud → progetto FotoUnica). Non è un segreto.
 const CLIENT_ID_DEFAULT = "770423111960-puuc3gdut8sgi7i67g40t42k2n1c4ro1.apps.googleusercontent.com";
-const SCOPES = "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file";
+const SCOPES = "https://www.googleapis.com/auth/drive"; // modifica: preferiti, cestino, copertine, nascoste, condivisione
 const API = "https://www.googleapis.com/drive/v3";
 const UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 const FOLDER = "application/vnd.google-apps.folder";
@@ -272,7 +317,10 @@ const S = {
   emails: JSON.parse(localStorage.getItem("fu.accounts") || "[]"),
   tokens: JSON.parse(sessionStorage.getItem("fu.tokens") || "{}"), // email -> {token, exp}
   info: {},        // email -> {usage, limit, error}
-  photos: [],
+  all: [],         // tutto tranne il cestino, nascoste comprese
+  photos: [],      // visibili
+  hidden: [], favs: [], videos: [], memories: [],
+  folders: {}, trash: null, searching: false, query: "", searchIndex: null,
   roots: [],       // cartelle principali (es. anni) con le sottocartelle
   folderIndex: {},
   path: [],        // cartelle aperte nella scheda Album ("foto:<id>" = solo le foto sciolte)
@@ -284,7 +332,7 @@ const saveEmails = () => localStorage.setItem("fu.accounts", JSON.stringify(S.em
 const saveTokens = () => sessionStorage.setItem("fu.tokens", JSON.stringify(S.tokens));
 const tokenOf = (email) => {
   const t = S.tokens[email];
-  return t && t.exp > Date.now() + 60_000 ? t.token : null;
+  return t && t.full && t.exp > Date.now() + 60_000 ? t.token : null; // "full": token con il permesso di modifica
 };
 const connected = () => S.emails.filter(tokenOf);
 const disconnected = () => S.emails.filter((e) => !tokenOf(e));
@@ -333,7 +381,7 @@ async function connect(hint) {
     }).then((x) => x.json());
     const email = about?.user?.emailAddress;
     if (!email) throw new Error("Account non riconosciuto");
-    S.tokens[email] = { token: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000 };
+    S.tokens[email] = { token: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000, full: true };
     saveTokens();
     if (!S.emails.includes(email)) { S.emails.push(email); saveEmails(); }
     toast(`Collegato ${email}`);
@@ -388,21 +436,32 @@ async function loadAccount(email) {
   const q = about.storageQuota || {};
   S.info[email] = { usage: Number(q.usage || 0), limit: q.limit ? Number(q.limit) : Infinity };
   const [folders, files] = await Promise.all([
-    listAll(email, `mimeType = '${FOLDER}' and trashed = false`, "id,name,parents"),
-    listAll(email, "mimeType contains 'image/' and trashed = false",
-      "id,name,mimeType,thumbnailLink,parents,createdTime,imageMediaMetadata(time,location)"),
+    listAll(email, `mimeType = '${FOLDER}' and trashed = false`, "id,name,parents,appProperties"),
+    listMedia(email, false),
   ]);
   return {
-    folders: Object.fromEntries(folders.map((f) => [f.id, { id: f.id, name: f.name || "Senza nome", parent: f.parents?.[0] || null, account: email }])),
-    photos: files.map((f) => ({
-      id: f.id, account: email, name: f.name || "", mime: f.mimeType || "",
-      thumb: f.thumbnailLink || null,
-      taken: parseExif(f.imageMediaMetadata?.time) || Date.parse(f.createdTime || "") || 0,
-      parent: f.parents?.[0] || null,
-      lat: Number.isFinite(f.imageMediaMetadata?.location?.latitude) ? f.imageMediaMetadata.location.latitude : null,
-      lng: Number.isFinite(f.imageMediaMetadata?.location?.longitude) ? f.imageMediaMetadata.location.longitude : null,
-    })),
+    folders: Object.fromEntries(folders.map((f) => [f.id, { id: f.id, name: f.name || "Senza nome", parent: f.parents?.[0] || null,
+      account: email, coverId: f.appProperties?.cfCover || null }])),
+    photos: files,
   };
+}
+
+/** Foto e video di un account (o quelli nel cestino). */
+async function listMedia(email, trashed) {
+  const files = await listAll(email, `(mimeType contains 'image/' or mimeType contains 'video/') and trashed = ${trashed}`,
+    "id,name,mimeType,thumbnailLink,parents,createdTime,starred,md5Checksum,size,appProperties," +
+    "imageMediaMetadata(time,location),videoMediaMetadata(durationMillis)");
+  return files.map((f) => ({
+    id: f.id, account: email, name: f.name || "", mime: f.mimeType || "",
+    thumb: f.thumbnailLink || null,
+    taken: parseExif(f.imageMediaMetadata?.time) || Date.parse(f.createdTime || "") || 0,
+    parent: f.parents?.[0] || null,
+    lat: Number.isFinite(f.imageMediaMetadata?.location?.latitude) ? f.imageMediaMetadata.location.latitude : null,
+    lng: Number.isFinite(f.imageMediaMetadata?.location?.longitude) ? f.imageMediaMetadata.location.longitude : null,
+    starred: !!f.starred, hidden: f.appProperties?.cfHidden === "1",
+    video: (f.mimeType || "").startsWith("video/"), dur: Number(f.videoMediaMetadata?.durationMillis || 0),
+    md5: f.md5Checksum || null, size: Number(f.size || 0), trashed,
+  }));
 }
 
 async function refresh() {
@@ -424,15 +483,45 @@ async function refresh() {
     for (const p of r.photos) if (!seen.has(p.id)) { seen.add(p.id); photos.push(p); }
   }
   photos.sort((a, b) => b.taken - a.taken);
-  S.photos = photos;
+  S.folders = folders;
+  for (const f of Object.values(folders)) if (f.coverId) manualCovers[f.id] = f.coverId; // copertine scelte su Drive (anche dall'app)
+  saveCovers();
+  S.trash = null;
+  setAll(photos);
+  S.loading = false; $("progressbar").classList.remove("on");
+  render();
+}
+
+/** Ricalcola timeline, raccolte, ricordi e album da un elenco (dopo un aggiornamento o una modifica). */
+function setAll(all) {
+  S.all = all;
+  S.photos = all.filter((p) => !p.hidden);
+  S.hidden = all.filter((p) => p.hidden);
+  S.favs = S.photos.filter((p) => p.starred);
+  S.videos = S.photos.filter((p) => p.video);
+  S.memories = memoriesFor(S.photos);
   photosVersion++;
-  S.roots = buildTree(folders, photos);
+  S.roots = buildTree(S.folders || {}, S.photos);
   S.folderIndex = {};
   const index = (n) => { S.folderIndex[n.id] = n; n.subs.forEach(index); };
   S.roots.forEach(index);
-  S.path = S.path.filter((id) => S.folderIndex[id.replace(/^foto:/, "")]);
-  S.loading = false; $("progressbar").classList.remove("on");
-  render();
+  S.path = S.path.filter((id) => id.startsWith("col:") || S.folderIndex[id.replace(/^foto:/, "")]);
+  S.searchIndex = null;
+}
+const updateItem = (id, change) => setAll(S.all.map((p) => (p.id === id ? { ...p, ...change } : p)));
+
+/** "In questo giorno": foto scattate oggi negli anni passati. */
+function memoriesFor(photos) {
+  const now = new Date(), out = new Map();
+  for (const p of photos) {
+    if (!p.taken) continue;
+    const d = new Date(p.taken);
+    if (d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate() || d.getFullYear() >= now.getFullYear()) continue;
+    const ago = now.getFullYear() - d.getFullYear();
+    if (!out.has(ago)) out.set(ago, []);
+    out.get(ago).push(p);
+  }
+  return [...out].sort((a, b) => a[0] - b[0]).map(([ago, list]) => ({ ago, photos: list.sort((a, b) => a.taken - b.taken) }));
 }
 
 // ---------- miniature ----------
@@ -475,9 +564,11 @@ function pumpFallback() {
   }
 }
 
+const fmtDur = (ms) => { const t = Math.round(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 function tile(p, onOpen) {
   const d = document.createElement("div");
   d.className = "tile"; d.title = p.name;
+  if (p.video || p.starred) d.append(el("span", { className: "badge", textContent: (p.starred ? "♥ " : "") + (p.video ? `▶ ${p.dur ? fmtDur(p.dur) : ""}` : "") }));
   const img = document.createElement("img");
   img.loading = "lazy"; img.decoding = "async"; img.alt = p.name; img.referrerPolicy = "no-referrer";
   img.onerror = () => { img.onerror = null; img.removeAttribute("src"); fallbackThumb(img, p); };
@@ -493,6 +584,7 @@ const fmtMonth = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeri
 const fmtDate = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const monthLabel = (t) => t ? fmtMonth.format(t).replace(/^./, (c) => c.toUpperCase()) : "Data sconosciuta";
 const gb = (b) => b === Infinity ? "illimitato" : `${(b / 1e9).toLocaleString("it-IT", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} GB`;
+const sizeLabel = (b) => b >= 1e9 ? gb(b) : `${Math.round(b / 1e6).toLocaleString("it-IT")} MB`;
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
   for (const k of kids) if (k != null) e.append(k);
@@ -526,18 +618,35 @@ function renderInner() {
       el("button", { className: "btn", textContent: `Collega ${missing[0]}`, onclick: () => connect(missing[0]) })));
   }
 
+  if (S.searching) return renderSearch(main);
   if (S.tab === "accounts") return renderAccounts(main);
-  let list = S.photos, longPress = null;
+  let list = S.photos, longPress = null, mode = "normal";
   if (S.tab === "albums") {
     const top = S.path[S.path.length - 1];
+    const back = (title, sub) => main.append(el("div", { className: "album-head" },
+      el("button", { className: "icon-btn", title: "Indietro", innerHTML: '<svg class="i" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
+        onclick: () => { S.path.pop(); render(); } }),
+      el("h2", { textContent: title }), el("span", { className: "muted", textContent: sub })));
+    if (top?.startsWith("col:")) {
+      const col = COLLECTIONS.find((c) => c.id === top);
+      if (top === "col:cestino") {
+        back(col.title, "");
+        return renderTrash(main);
+      }
+      if (top === "col:duplicati") {
+        back(col.title, "");
+        return renderDuplicates(main);
+      }
+      list = top === "col:preferiti" ? S.favs : top === "col:video" ? S.videos : S.hidden;
+      mode = top === "col:nascoste" ? "hidden" : "normal";
+      back(col.title, `${list.length}`);
+      if (!list.length) return main.append(el("div", { className: "empty" }, el("p", { textContent: col.empty })));
+      return renderGrid(main, list, { mode });
+    }
     const node = top && S.folderIndex[top.replace(/^foto:/, "")];
     if (!node) return renderFolders(main, S.roots, null);
     const photosOnly = top.startsWith("foto:");
-    main.append(el("div", { className: "album-head" },
-      el("button", { className: "icon-btn", title: "Indietro", innerHTML: '<svg class="i" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
-        onclick: () => { S.path.pop(); render(); } }),
-      el("h2", { textContent: photosOnly ? `Altre foto in «${node.name}»` : node.name }),
-      el("span", { className: "muted", textContent: `${(photosOnly ? node.photos : node.all).length} foto` })));
+    back(photosOnly ? `Altre foto in «${node.name}»` : node.name, `${(photosOnly ? node.photos : node.all).length} foto`);
     if (!photosOnly && node.subs.length) return renderFolders(main, node.subs, node);
     list = photosOnly ? node.photos : node.all;
     longPress = (p) => coverMenu(p);
@@ -551,6 +660,12 @@ function renderInner() {
       S.emails.length ? null : el("button", { className: "btn", textContent: "Collega un account", onclick: () => connect() })));
     return;
   }
+  if (S.tab === "photos" && S.memories.length) main.append(memoriesRow());
+  renderGrid(main, list, { longPress, mode });
+}
+
+/** Griglia per mesi; il cursore laterale legge le sezioni. */
+function renderGrid(main, list, { longPress = null, mode = "normal" } = {}) {
   let current = null, grid = null;
   list.forEach((p, i) => {
     const m = monthLabel(p.taken);
@@ -562,10 +677,129 @@ function renderInner() {
       sec.dataset.year = p.taken ? String(new Date(p.taken).getFullYear()) : "?";
       main.append(sec);
     }
-    const t = tile(p, () => openViewer(list, i));
+    const t = tile(p, () => openViewer(list, i, mode));
     if (longPress) t.addEventListener("contextmenu", (e) => { e.preventDefault(); longPress(p); });
     grid.append(t);
   });
+}
+
+// ---------- raccolte ----------
+const COLLECTIONS = [
+  { id: "col:preferiti", title: "Preferiti", icon: "♥", empty: "Nessun preferito. Apri una foto e tocca il cuore." },
+  { id: "col:video", title: "Video", icon: "▶", empty: "Nessun video su Google Drive." },
+  { id: "col:duplicati", title: "Duplicati", icon: "⧉", empty: "" },
+  { id: "col:nascoste", title: "Nascoste", icon: "🔒", empty: "Nessuna foto nascosta. Apri una foto e tocca «Nascondi»." },
+  { id: "col:cestino", title: "Eliminate di recente", icon: "🗑", empty: "" },
+];
+function collectionsRow() {
+  const row = el("div", { className: "collections" });
+  for (const c of COLLECTIONS) {
+    const cover = c.id === "col:preferiti" ? S.favs[0] : c.id === "col:video" ? S.videos[0] : null;
+    const count = c.id === "col:preferiti" ? S.favs.length : c.id === "col:video" ? S.videos.length : null;
+    const open = () => {
+      if (c.id === "col:nascoste" && !confirm("Mostrare le foto nascoste?")) return;
+      S.path.push(c.id); render(); window.scrollTo(0, 0);
+    };
+    row.append(el("div", { className: "album", onclick: open },
+      cover ? tile(cover, null) : el("div", { className: "icon", textContent: c.icon }),
+      el("b", { textContent: c.title }), el("small", { textContent: count == null ? "" : String(count) })));
+  }
+  return row;
+}
+
+function memoriesRow() {
+  const row = el("div", { className: "memories" });
+  for (const m of S.memories) {
+    const cover = m.photos.find((p) => !p.video) || m.photos[0];
+    const card = el("div", { className: "memory", onclick: () => openViewer(m.photos, 0, "normal") },
+      tile(cover, null), el("span", { textContent: m.ago === 1 ? "1 anno fa" : `${m.ago} anni fa` }));
+    row.append(card);
+  }
+  return el("div", {}, el("div", { className: "section-title", textContent: "In questo giorno" }), row);
+}
+
+async function renderTrash(main) {
+  main.append(el("p", { className: "muted", textContent: "Gli elementi eliminati restano nel cestino di Google Drive per 30 giorni, poi vengono cancellati." }));
+  if (S.trash == null) {
+    main.append(el("p", { className: "muted", textContent: "Caricamento…" }));
+    const lists = await Promise.all(connected().map((e) => listMedia(e, true).catch(() => [])));
+    const seen = new Set();
+    S.trash = lists.flat().filter((p) => !seen.has(p.id) && seen.add(p.id)).sort((a, b) => b.taken - a.taken);
+    if (S.path[S.path.length - 1] === "col:cestino") render();
+    return;
+  }
+  if (!S.trash.length) return main.append(el("div", { className: "empty" }, el("p", { textContent: "Nessun elemento eliminato." })));
+  main.append(el("button", { className: "btn secondary", textContent: `Svuota (${S.trash.length})`, onclick: () => {
+    if (!confirm("Foto e video verranno cancellati da Google Drive per sempre. Continuare?")) return;
+    const items = S.trash; S.trash = [];
+    driveAction("Svuotamento non completato", async () => { for (const p of items) await deleteFile(p); });
+    toast(`Cestino svuotato (${items.length} elementi)`); render();
+  } }));
+  renderGrid(main, S.trash, { mode: "trash" });
+}
+
+function renderDuplicates(main) {
+  const groups = Object.values(S.all.reduce((acc, p) => { if (p.md5) (acc[p.md5] ||= []).push(p); return acc; }, {}))
+    .filter((g) => g.length > 1)
+    .map((g) => g.sort((a, b) => (a.parent ? 0 : 1) - (b.parent ? 0 : 1) || a.name.length - b.name.length))
+    .sort((a, b) => b.slice(1).reduce((s, p) => s + p.size, 0) - a.slice(1).reduce((s, p) => s + p.size, 0));
+  if (!groups.length) return main.append(el("div", { className: "empty" }, el("p", { textContent: "Nessun duplicato: ogni foto è salvata una volta sola." })));
+  const wasted = groups.reduce((s, g) => s + g.slice(1).reduce((t, p) => t + p.size, 0), 0);
+  main.append(el("p", { className: "total", textContent: `${groups.length} foto salvate più volte · ${sizeLabel(wasted)} recuperabili` }));
+  const folderName = (p) => (p.parent && S.folders?.[p.parent]?.name) || "Drive";
+  for (const g of groups) {
+    const row = el("div", { className: "row" });
+    g.slice(0, 5).forEach((p, i) => row.append(tile(p, () => openViewer(g, i, "normal"))));
+    main.append(el("div", { className: "dup" }, row,
+      el("b", { textContent: g[0].name }),
+      el("div", { className: "muted", textContent: g.map((p) => `${folderName(p)} (${p.account.split("@")[0]})`).join(" · ") }),
+      el("button", { className: "btn secondary", style: "margin-top:8px", textContent: `Tieni una copia, elimina le altre ${g.length - 1}`,
+        onclick: () => {
+          if (!confirm(`Resta la copia in «${folderName(g[0])}». Le altre vanno in «Eliminate di recente» (recuperabili per 30 giorni).`)) return;
+          g.slice(1).forEach((p) => trashPhoto(p, true));
+          toast(`${g.length - 1} copie spostate in Eliminate di recente`);
+        } })));
+  }
+}
+
+// ---------- ricerca ----------
+function searchText(p) {
+  const path = [];
+  let id = p.parent, guard = 0;
+  while (id && S.folders?.[id] && guard++ < 30) { path.push(S.folders[id].name); id = S.folders[id].parent; }
+  const d = p.taken ? new Date(p.taken) : null;
+  return norm([p.name, ...path, d ? monthLabel(p.taken) : "", d ? d.toLocaleDateString("it-IT", { day: "numeric", month: "long" }) : "",
+    p.video ? "video filmato" : "", p.starred ? "preferiti preferita preferito" : ""].join(" "));
+}
+const norm = (t) => t.toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "");
+function renderSearch(main) {
+  const input = el("input", { type: "text", placeholder: "Cerca: giugno 2023, mare, video, nome cartella…", value: S.query || "" });
+  const results = el("div");
+  const run = () => {
+    S.query = input.value;
+    results.replaceChildren();
+    const terms = norm(S.query).split(/\s+/).filter(Boolean);
+    if (!terms.length) {
+      const years = [...new Set(S.photos.filter((p) => p.taken).map((p) => new Date(p.taken).getFullYear()))].sort((a, b) => b - a).slice(0, 6);
+      const chips = el("div", { className: "chips" });
+      for (const c of ["Video", "Preferiti", ...S.roots.slice(0, 6).map((r) => r.name), ...years.map(String)]) {
+        chips.append(el("button", { className: "chip", textContent: c, onclick: () => { input.value = c; run(); } }));
+      }
+      results.append(chips);
+      setupScrubber();
+      return;
+    }
+    if (!S.searchIndex) { S.searchIndex = new Map(); for (const p of S.all) S.searchIndex.set(p.id, searchText(p)); }
+    const found = S.photos.filter((p) => { const t = S.searchIndex.get(p.id) || ""; return terms.every((x) => t.includes(x)); });
+    results.append(el("p", { className: "muted", textContent: found.length ? `${found.length} risultati` : `Nessun risultato per «${S.query}».` }));
+    renderGrid(results, found);
+    setupScrubber();
+  };
+  input.oninput = run;
+  main.append(el("div", { className: "searchbar" }, input,
+    el("button", { className: "btn secondary", textContent: "Chiudi", onclick: () => { S.searching = false; S.query = ""; render(); } })), results);
+  run();
+  setTimeout(() => input.focus(), 0);
 }
 
 // ---------- cartelle e copertine ----------
@@ -585,7 +819,7 @@ function buildTree(folders, photos) {
       const seen = new Set();
       const all = [...own, ...subs.flatMap((x) => x.all)].filter((p) => !seen.has(p.id) && seen.add(p.id))
         .sort((a, b) => b.taken - a.taken);
-      node = { id: f.id, name: f.name, account: f.account, subs, photos: own, all };
+      node = { id: f.id, name: f.name, account: f.account, subs, photos: own, all, coverId: f.coverId || null };
     }
     return (memo[f.id] = node);
   };
@@ -612,10 +846,11 @@ const manualCovers = (() => { try { return JSON.parse(localStorage.getItem("fu.c
 const saveCovers = () => { try { localStorage.setItem("fu.covers", JSON.stringify(manualCovers)); } catch {} };
 /** Copertina: quella scelta a mano, altrimenti una foto ben esposta presa a metà del periodo della cartella. */
 function coverOf(node) {
-  const chosen = manualCovers[node.id] && node.all.find((p) => p.id === manualCovers[node.id]);
+  const wanted = manualCovers[node.id] || node.coverId;
+  const chosen = wanted && node.all.find((p) => p.id === wanted);
   if (chosen) return chosen;
   // preferisce JPEG con miniatura (i RAW spesso non ce l'hanno), presa nel mezzo della cartella
-  const good = node.all.filter((p) => p.thumb && !RAW_EXT.includes(extOf(p.name)));
+  const good = node.all.filter((p) => p.thumb && !p.video && !RAW_EXT.includes(extOf(p.name)));
   const pool = good.length ? good : node.all;
   return pool[Math.floor(pool.length / 2)];
 }
@@ -626,11 +861,39 @@ function coverMenu(photo) {
   const dlg = $("dlgCover");
   const box = $("coverChoices");
   box.replaceChildren(...path.map((n) => el("button", { className: "btn secondary", textContent: `di «${n.name}»`,
-    onclick: () => { manualCovers[n.id] = photo.id; saveCovers(); dlg.close(); toast(`Copertina di «${n.name}» aggiornata`); } })));
+    onclick: () => { setCover(n, photo); dlg.close(); } })));
+  dlg.showModal();
+}
+
+/** Salva la copertina sul browser e, per le cartelle vere, anche su Drive (così vale nell'app). */
+function setCover(node, photo) {
+  if (photo) manualCovers[node.id] = photo.id; else delete manualCovers[node.id];
+  saveCovers();
+  toast(photo ? `Copertina di «${node.name}» aggiornata` : `Copertina di «${node.name}» scelta in automatico`);
+  if (!node.id.startsWith("unito:")) {
+    driveAction("Copertina non salvata su Drive", () => patchFile(node.account, node.id, { appProperties: { cfCover: photo ? photo.id : null } }));
+  }
+  render();
+}
+
+function folderMenu(f) {
+  const dlg = $("dlgMenu");
+  $("menuTitle").textContent = f.name;
+  const wanted = manualCovers[f.id] || f.coverId;
+  $("menuChoices").replaceChildren(
+    el("button", { className: "btn secondary", textContent: "Condividi album…", onclick: () => {
+      dlg.close();
+      const email = prompt(`Con chi vuoi condividere «${f.name}»? (email)\nRiceverà un'email da Google e potrà vedere le foto, senza modificarle.`);
+      if (email) shareFolder(f, email.trim());
+    } }),
+    wanted ? el("button", { className: "btn secondary", textContent: "Copertina automatica", onclick: () => { dlg.close(); setCover(f, null); } })
+      : el("p", { className: "muted", textContent: "Per scegliere la copertina apri la cartella e fai clic destro (o pressione lunga) su una foto." }),
+  );
   dlg.showModal();
 }
 
 function renderFolders(main, folders, parent) {
+  if (!parent) main.append(collectionsRow(), el("div", { className: "section-title", textContent: "Cartelle" }));
   if (!folders.length && !(parent?.photos.length)) {
     if (!S.loading) main.append(el("div", { className: "empty" },
       el("h2", { textContent: "Nessun album" }),
@@ -646,10 +909,7 @@ function renderFolders(main, folders, parent) {
   };
   for (const f of folders) {
     const sub = `${f.all.length} foto` + (f.subs.length ? ` · ${f.subs.length} cartelle` : "");
-    wrap.append(card(coverOf(f), f.name, sub, () => { S.path.push(f.id); render(); window.scrollTo(0, 0); }, () => {
-      if (!manualCovers[f.id]) return toast("Per scegliere la copertina apri la cartella e tieni premuta (o clic destro su) una foto.");
-      if (confirm(`Tornare alla copertina automatica per «${f.name}»?`)) { delete manualCovers[f.id]; saveCovers(); render(); }
-    }));
+    wrap.append(card(coverOf(f), f.name, sub, () => { S.path.push(f.id); render(); window.scrollTo(0, 0); }, () => folderMenu(f)));
   }
   if (parent?.photos.length) {
     wrap.append(card(parent.photos[0], "Altre foto", `${parent.photos.length} foto in «${parent.name}»`,
@@ -779,7 +1039,7 @@ async function showMap() {
 const Scrub = { sections: [], dragging: false };
 function setupScrubber() {
   const box = $("scrub");
-  document.documentElement.style.setProperty("--head", `${document.querySelector("header").offsetHeight + 4}px`);
+  document.documentElement.style.setProperty("--head", `${document.querySelector("header").offsetHeight + $("tabs").offsetHeight + 4}px`);
   const secs = [...document.querySelectorAll("#main section.month")];
   const count = document.querySelectorAll("#main section.month .tile").length;
   box.hidden = S.tab === "map" || S.tab === "accounts" || count <= 40;
@@ -842,10 +1102,85 @@ window.addEventListener("resize", updateScrubThumb);
   box.addEventListener("pointercancel", end);
 })();
 
+// ---------- azioni su Drive ----------
+async function patchFile(email, id, body) {
+  await api(email, `${API}/files/${id}?fields=id`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+async function deleteFile(p) {
+  try { await api(p.account, `${API}/files/${p.id}`, { method: "DELETE" }); }
+  catch (e) { if (!String(e.message).includes(" 404")) throw e; }
+}
+/** Esegue l'azione su Drive; se fallisce lo dice (e annulla la modifica locale). */
+async function driveAction(failure, action, undo) {
+  try { await action(); }
+  catch (e) {
+    undo?.();
+    const m = String(e.message || e);
+    toast(`${failure}: ${e instanceof Expired ? "ricollega l'account" : m.includes(" 403") ? "permesso mancante (ricollega l'account o il file è di un altro)" : m.slice(0, 140)}`, true);
+    render();
+  }
+}
+function toggleFav(p) {
+  const now = !p.starred;
+  updateItem(p.id, { starred: now }); render();
+  driveAction("Preferito non salvato", () => patchFile(p.account, p.id, { starred: now }), () => updateItem(p.id, { starred: !now }));
+}
+function setHiddenPhoto(p, hidden) {
+  updateItem(p.id, { hidden }); render();
+  toast(hidden ? "Spostata in Nascoste" : "Di nuovo visibile");
+  driveAction("Modifica non salvata", () => patchFile(p.account, p.id, { appProperties: { cfHidden: hidden ? "1" : null } }), () => updateItem(p.id, { hidden: !hidden }));
+}
+function trashPhoto(p, quiet) {
+  const before = S.all;
+  setAll(S.all.filter((x) => x.id !== p.id));
+  if (S.trash) S.trash = [{ ...p, trashed: true }, ...S.trash];
+  if (!quiet) toast("Spostata in Eliminate di recente");
+  render();
+  driveAction("Eliminazione non riuscita", () => patchFile(p.account, p.id, { trashed: true }), () => setAll(before));
+}
+function restorePhoto(p) {
+  S.trash = (S.trash || []).filter((x) => x.id !== p.id);
+  setAll([...S.all, { ...p, trashed: false }].sort((a, b) => b.taken - a.taken));
+  toast("Ripristinata"); render();
+  driveAction("Ripristino non riuscito", () => patchFile(p.account, p.id, { trashed: false }));
+}
+function deleteForever(p) {
+  S.trash = (S.trash || []).filter((x) => x.id !== p.id);
+  toast("Eliminata definitivamente"); render();
+  driveAction("Eliminazione non riuscita", () => deleteFile(p));
+}
+async function shareFolder(node, email) {
+  if (!email.includes("@")) return toast("Indirizzo email non valido", true);
+  const targets = node.id.startsWith("unito:")
+    ? Object.values(S.folders).filter((f) => f.name.trim().toLowerCase() === node.name.trim().toLowerCase() && !S.folders[f.parent])
+    : [S.folders[node.id]].filter(Boolean);
+  toast(`Condivido «${node.name}» con ${email}…`);
+  await driveAction("Condivisione non riuscita", async () => {
+    for (const f of targets) {
+      await api(f.account, `${API}/files/${f.id}/permissions?sendNotificationEmail=true`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "reader", type: "user", emailAddress: email }),
+      });
+    }
+    toast(`«${node.name}» condiviso con ${email}: riceverà un'email da Google`);
+  });
+}
+async function sharePhoto(p) {
+  toast("Preparo la condivisione…");
+  try {
+    const blob = await api(p.account, mediaUrl(p)).then((r) => r.blob());
+    const file = new File([blob], p.name || "foto.jpg", { type: p.mime || blob.type });
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: p.name }); return; }
+    const a = el("a", { href: URL.createObjectURL(blob), download: p.name || "foto.jpg" });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  } catch (e) { if (e.name !== "AbortError") toast(`Condivisione non riuscita: ${e.message}`, true); }
+}
+
 // ---------- visualizzatore ----------
-const V = { list: [], i: 0, zoom: 1, tx: 0, ty: 0, url: null };
-function openViewer(list, i) {
-  V.list = list; V.i = i;
+const V = { list: [], i: 0, zoom: 1, tx: 0, ty: 0, url: null, mode: "normal" };
+function openViewer(list, i, mode = "normal") {
+  V.list = list; V.i = i; V.mode = mode;
   $("viewer").classList.add("on");
   document.body.style.overflow = "hidden";
   showPhoto();
@@ -855,6 +1190,46 @@ function closeViewer() {
   document.body.style.overflow = "";
   if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
   $("vImg").removeAttribute("src");
+  const vid = $("vVid"); vid.pause(); vid.removeAttribute("src"); vid.load();
+}
+/** La foto mostrata esce dall'elenco (eliminata, nascosta, ripristinata). */
+function removeFromViewer(p) {
+  V.list = V.list.filter((x) => x.id !== p.id);
+  if (!V.list.length) return closeViewer();
+  V.i = Math.min(V.i, V.list.length - 1);
+  showPhoto();
+}
+function viewerActions(p) {
+  const cur = S.all.find((x) => x.id === p.id) || p;
+  const b = (icon, label, fn) => el("button", { onclick: fn }, el("b", { textContent: icon }), label);
+  const box = $("vActions");
+  if (V.mode === "trash") {
+    box.replaceChildren(
+      b("↺", "Ripristina", () => { restorePhoto(cur); removeFromViewer(cur); }),
+      b("✕", "Elimina per sempre", () => { if (confirm(`«${cur.name}» verrà cancellata da Google Drive. Non si potrà recuperare.`)) { deleteForever(cur); removeFromViewer(cur); } }));
+    return;
+  }
+  box.replaceChildren(
+    b("⤴", "Condividi", () => sharePhoto(cur)),
+    V.mode === "normal" ? b(cur.starred ? "♥" : "♡", cur.starred ? "Preferita" : "Preferiti", () => { toggleFav(cur); viewerActions(cur); }) : null,
+    b("🔒", V.mode === "hidden" ? "Mostra" : "Nascondi", () => { setHiddenPhoto(cur, V.mode !== "hidden"); removeFromViewer(cur); }),
+    b("🗑", "Elimina", () => {
+      if (confirm(`«${cur.name}» va in «Eliminate di recente»: puoi recuperarla per 30 giorni.`)) { trashPhoto(cur); removeFromViewer(cur); }
+    }),
+  );
+}
+function showInfo() {
+  const p = S.all.find((x) => x.id === V.list[V.i]?.id) || V.list[V.i];
+  if (!p) return;
+  const row = (k, v) => v ? el("div", {}, el("div", { className: "muted", textContent: k }), el("div", { textContent: v })) : null;
+  $("infoBody").replaceChildren(...[
+    row("Nome", p.name), row("Data", p.taken ? fmtDate.format(p.taken) : "sconosciuta"),
+    p.video && p.dur ? row("Durata", fmtDur(p.dur)) : null,
+    p.size ? row("Dimensione", `${(p.size / 1e6).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB`) : null,
+    row("Album", p.parent && S.folders?.[p.parent]?.name), row("Account", p.account),
+    p.lat != null ? row("Coordinate", `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`) : null,
+  ].filter(Boolean));
+  $("dlgInfo").showModal();
 }
 async function showPhoto() {
   const p = V.list[V.i];
@@ -864,11 +1239,31 @@ async function showPhoto() {
   $("vSub").textContent = [p.taken ? fmtDate.format(p.taken) : "", p.account, `${V.i + 1} di ${V.list.length}`].filter(Boolean).join(" · ");
   $("vPrev").style.visibility = V.i > 0 ? "" : "hidden";
   $("vNext").style.visibility = V.i < V.list.length - 1 ? "" : "hidden";
-  const img = $("vImg");
+  viewerActions(p);
+  const img = $("vImg"), vid = $("vVid"), msg = $("vMsg");
   img.referrerPolicy = "no-referrer";
   const preview = thumbUrl(p, 1600);
   if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
+  vid.pause(); vid.removeAttribute("src"); vid.style.display = "none"; msg.style.display = "none"; img.style.display = "";
   if (preview) img.src = preview; else img.removeAttribute("src");
+  if (p.video && V.mode !== "trash") {
+    // il browser non può mandare il token a <video>: si scarica il file e lo si riproduce da qui
+    if (p.size > 400e6) {
+      msg.style.display = "block";
+      msg.replaceChildren(el("p", { textContent: "Video troppo grande da riprodurre qui." }),
+        el("a", { className: "btn", href: `https://drive.google.com/file/d/${p.id}/view`, target: "_blank", rel: "noopener", textContent: "Apri in Google Drive" }));
+      return;
+    }
+    msg.style.display = "block"; msg.textContent = "Caricamento del video…";
+    try {
+      const blob = await api(p.account, mediaUrl(p)).then((r) => r.blob());
+      if (V.list[V.i] !== p) return;
+      V.url = URL.createObjectURL(blob);
+      img.style.display = "none"; msg.style.display = "none";
+      vid.src = V.url; vid.style.display = "block"; vid.play().catch(() => {});
+    } catch (e) { msg.textContent = `Video non disponibile: ${e.message}`; }
+    return;
+  }
   if (!DECODABLE.includes(p.mime)) {
     if (!preview) img.alt = "Anteprima non disponibile";
     return;
@@ -910,6 +1305,8 @@ function toggleZoom(ev) {
   applyZoom(true);
 }
 $("vClose").onclick = closeViewer;
+$("vInfo").onclick = showInfo;
+$("btnSearch").onclick = () => { S.searching = !S.searching; if (!S.searching) S.query = ""; render(); window.scrollTo(0, 0); };
 $("vPrev").onclick = () => step(-1);
 $("vNext").onclick = () => step(1);
 $("vOpen").onclick = () => window.open(`https://drive.google.com/file/d/${V.list[V.i].id}/view`, "_blank", "noopener");
@@ -942,7 +1339,7 @@ $("viewer").addEventListener("wheel", (e) => {
   const stage = $("viewer");
   const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
   stage.addEventListener("touchstart", (e) => {
-    if (e.target.closest("button")) return;
+    if (e.target.closest("button, video, .actions, a")) return;
     if (e.touches.length === 2) {
       const [a, b] = e.touches;
       pinch = { d: dist(a, b), zoom: V.zoom, cx: (a.clientX + b.clientX) / 2, cy: (a.clientY + b.clientY) / 2 };
@@ -972,7 +1369,7 @@ $("viewer").addEventListener("wheel", (e) => {
     }
   }, { passive: false });
   stage.addEventListener("touchend", (e) => {
-    if (e.target.closest("button")) { start = null; return; }
+    if (e.target.closest("button, video, .actions, a")) { start = null; return; }
     if (e.touches.length > 0) { pinch = null; start = null; last = null; return; } // un dito resta giù dopo il pizzico
     if (pinch) { pinch = null; if (V.zoom < 1.05) { resetZoom(); } return; }
     if (!start) return;
@@ -1219,7 +1616,7 @@ $("setupSave").onclick = () => {
 $("tabs").onclick = (e) => {
   const b = e.target.closest("button[data-tab]");
   if (!b) return;
-  S.tab = b.dataset.tab; S.path = []; render(); window.scrollTo(0, 0);
+  S.tab = b.dataset.tab; S.path = []; S.searching = false; render(); window.scrollTo(0, 0);
 };
 $("btnRefresh").onclick = () => refresh();
 
