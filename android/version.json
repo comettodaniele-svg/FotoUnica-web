@@ -1,6 +1,6 @@
 {
-  "versionCode": 14,
-  "versionName": "0.1.14",
+  "versionCode": 15,
+  "versionName": "0.1.15",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Video: riproduzione più affidabile; se un formato non si può leggere (es. .MTS della videocamera) puoi guardarlo con Google Drive."
+  "notes": "Video: se si sente solo l'audio o resta nero, l'app se ne accorge e propone di guardarlo con Google Drive o con un altro lettore come VLC."
 }

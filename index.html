@@ -1356,6 +1356,30 @@ function browserCanPlay(p) {
   const mime = p.mime === "video/quicktime" ? "video/mp4" : p.mime; // i .MOV con H.264 di solito funzionano
   return ["video/mp4", "video/webm", "video/ogg", "video/x-m4v", "video/quicktime"].includes(p.mime) && v.canPlayType(mime) !== "";
 }
+/** Se si sente solo l'audio o l'immagine resta nera, passa da solo al lettore di Drive. */
+function watchVideo(p, vid) {
+  const still = () => V.list[V.i] === p && vid.style.display !== "none" && $("viewer").classList.contains("on");
+  vid.onloadedmetadata = () => { if (still() && vid.videoWidth === 0) playWithDrive(p, "Il browser legge solo l'audio"); };
+  const canvas = document.createElement("canvas"); canvas.width = 32; canvas.height = 18;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  let black = 0, checks = 0;
+  const timer = setInterval(() => {
+    if (!still()) return clearInterval(timer);
+    if (vid.paused || vid.currentTime < 2.5) return;
+    const q = vid.getVideoPlaybackQuality?.();
+    if (q && q.totalVideoFrames === 0 && vid.currentTime > 3) { clearInterval(timer); return playWithDrive(p, "Le immagini non arrivano"); }
+    try {
+      ctx.drawImage(vid, 0, 0, 32, 18);
+      const d = ctx.getImageData(0, 0, 32, 18).data;
+      let max = 0;
+      for (let i = 0; i < d.length; i += 4) max = Math.max(max, d[i] + d[i + 1] + d[i + 2]);
+      black = max < 30 ? black + 1 : -1;
+    } catch { black = -1; }
+    if (black >= 3) { clearInterval(timer); playWithDrive(p, "Il video resta nero in questo browser"); }
+    if (black < 0 || ++checks > 12) clearInterval(timer);
+  }, 700);
+}
+
 /** Lettore di Google Drive (converte lui il video): funziona se nel browser sei entrato con quell'account. */
 function playWithDrive(p, reason) {
   const fr = $("vFrame"), msg = $("vMsg");
@@ -1447,6 +1471,10 @@ async function showPhoto() {
       vid.onerror = () => { if (V.list[V.i] === p) playWithDrive(p, "Il browser non riesce a leggerlo"); };
       img.style.display = "none"; msg.style.display = "none";
       vid.src = V.url; vid.style.display = "block"; vid.play().catch(() => {});
+      watchVideo(p, vid);
+      // sempre disponibile, anche se il controllo automatico non se ne accorge
+      $("viewer").append(el("a", { className: "vlink", href: "#", textContent: "Non si vede? Usa il lettore di Google Drive",
+        onclick: (e) => { e.preventDefault(); playWithDrive(p, ""); } }));
     } catch (e) {
       if (e.name === "AbortError") return;
       if (V.list[V.i] === p) playWithDrive(p, "Download non riuscito");
