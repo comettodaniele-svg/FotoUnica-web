@@ -1,6 +1,6 @@
 {
-  "versionCode": 13,
-  "versionName": "0.1.13",
+  "versionCode": 14,
+  "versionName": "0.1.14",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Backup automatico delle foto del telefono (Account), ricerca per contenuto (spiaggia, cane, neve…) e modifica delle foto con filtri, luce, rotazione e ritaglio."
+  "notes": "Video: riproduzione più affidabile; se un formato non si può leggere (es. .MTS della videocamera) puoi guardarlo con Google Drive."
 }

@@ -120,7 +120,12 @@ main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
 .ed-tabs button { color: #fff; padding: 6px 12px; border-radius: 999px; }
 .ed-tabs button.on { background: #333; }
 #vVid { max-width: 100%; max-height: calc(100% - 80px); display: none; }
-#vMsg { color: #fff; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; display: none; }
+#vMsg { color: #fff; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; display: none; width: min(90%, 420px); }
+#vMsg .bar { height: 4px; background: rgba(255,255,255,.25); border-radius: 2px; margin: 10px 0; overflow: hidden; }
+#vMsg .bar div { height: 100%; background: #fff; width: 0; }
+#vFrame { display: none; border: 0; width: 100%; height: calc(100% - 150px); margin-top: 20px; background: #000; }
+#viewer.frame .nav { display: grid !important; }
+.vlink { position: absolute; left: 50%; transform: translateX(-50%); bottom: 90px; color: #fff; font-size: 13px; opacity: .85; }
 
 .albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 18px 14px; padding-top: 12px; }
 .album { cursor: pointer; min-width: 0; }
@@ -250,7 +255,7 @@ input[type=text] {
 </div>
 
 <div id="viewer">
-  <div class="stage"><img id="vImg" alt=""><video id="vVid" controls playsinline></video><div id="vMsg"></div></div>
+  <div class="stage"><img id="vImg" alt=""><video id="vVid" controls playsinline></video><iframe id="vFrame" allow="autoplay; fullscreen" allowfullscreen></iframe><div id="vMsg"></div></div>
   <div class="actions" id="vActions"></div>
   <div class="top">
     <button class="icon-btn" id="vClose" title="Chiudi (Esc)">
@@ -1335,7 +1340,32 @@ function closeViewer() {
   document.body.style.overflow = "";
   if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
   $("vImg").removeAttribute("src");
-  const vid = $("vVid"); vid.pause(); vid.removeAttribute("src"); vid.load();
+  stopVideo();
+}
+function stopVideo() {
+  const vid = $("vVid"); vid.pause(); vid.removeAttribute("src"); vid.load(); vid.style.display = "none"; vid.onerror = null;
+  const fr = $("vFrame"); fr.removeAttribute("src"); fr.style.display = "none";
+  $("viewer").classList.remove("frame");
+  document.querySelector("#viewer .vlink")?.remove();
+  V.videoAbort?.abort(); V.videoAbort = null;
+}
+const driveViewUrl = (p) => `https://drive.google.com/file/d/${p.id}/view?authuser=${encodeURIComponent(p.account)}`;
+/** Formati che il browser sa riprodurre da solo; gli altri (es. .MTS della videocamera) passano dal lettore di Drive. */
+function browserCanPlay(p) {
+  const v = $("vVid");
+  const mime = p.mime === "video/quicktime" ? "video/mp4" : p.mime; // i .MOV con H.264 di solito funzionano
+  return ["video/mp4", "video/webm", "video/ogg", "video/x-m4v", "video/quicktime"].includes(p.mime) && v.canPlayType(mime) !== "";
+}
+/** Lettore di Google Drive (converte lui il video): funziona se nel browser sei entrato con quell'account. */
+function playWithDrive(p, reason) {
+  const fr = $("vFrame"), msg = $("vMsg");
+  $("vImg").style.display = "none"; $("vVid").style.display = "none"; msg.style.display = "none";
+  fr.src = `https://drive.google.com/file/d/${p.id}/preview?authuser=${encodeURIComponent(p.account)}`;
+  fr.style.display = "block";
+  $("viewer").classList.add("frame");
+  document.querySelector("#viewer .vlink")?.remove();
+  $("viewer").append(el("a", { className: "vlink", href: driveViewUrl(p), target: "_blank", rel: "noopener",
+    textContent: `${reason ? reason + " · " : ""}Non parte? Apri in Google Drive ↗` }));
 }
 /** La foto mostrata esce dall'elenco (eliminata, nascosta, ripristinata). */
 function removeFromViewer(p) {
@@ -1390,24 +1420,37 @@ async function showPhoto() {
   img.referrerPolicy = "no-referrer";
   const preview = thumbUrl(p, 1600);
   if (V.url) { URL.revokeObjectURL(V.url); V.url = null; }
-  vid.pause(); vid.removeAttribute("src"); vid.style.display = "none"; msg.style.display = "none"; img.style.display = "";
+  stopVideo(); msg.style.display = "none"; img.style.display = "";
   if (preview) img.src = preview; else img.removeAttribute("src");
   if (p.video && V.mode !== "trash") {
-    // il browser non può mandare il token a <video>: si scarica il file e lo si riproduce da qui
-    if (p.size > 400e6) {
-      msg.style.display = "block";
-      msg.replaceChildren(el("p", { textContent: "Video troppo grande da riprodurre qui." }),
-        el("a", { className: "btn", href: `https://drive.google.com/file/d/${p.id}/view`, target: "_blank", rel: "noopener", textContent: "Apri in Google Drive" }));
-      return;
-    }
-    msg.style.display = "block"; msg.textContent = "Caricamento del video…";
+    // formato non supportato dal browser o file molto grande: lettore di Drive
+    if (!browserCanPlay(p)) return playWithDrive(p, `Formato ${extOf(p.name).toUpperCase() || p.mime}`);
+    if (p.size > 300e6) return playWithDrive(p, "Video grande");
+    // il browser non può mandare il token a <video>: si scarica il file (mostrando l'avanzamento) e lo si riproduce
+    const bar = el("div", { className: "bar" }, el("div"));
+    const label = el("div", { textContent: "Caricamento del video…" });
+    msg.replaceChildren(label, bar); msg.style.display = "block";
+    const abort = new AbortController(); V.videoAbort = abort;
     try {
-      const blob = await api(p.account, mediaUrl(p)).then((r) => r.blob());
+      const r = await api(p.account, mediaUrl(p), { signal: abort.signal });
+      const total = Number(r.headers.get("Content-Length")) || p.size || 0;
+      const reader = r.body.getReader(), parts = [];
+      let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(value); got += value.length;
+        if (total) { bar.firstChild.style.width = `${Math.min(100, got / total * 100)}%`; label.textContent = `Caricamento del video… ${Math.round(got / total * 100)}%`; }
+      }
       if (V.list[V.i] !== p) return;
-      V.url = URL.createObjectURL(blob);
+      V.url = URL.createObjectURL(new Blob(parts, { type: p.mime }));
+      vid.onerror = () => { if (V.list[V.i] === p) playWithDrive(p, "Il browser non riesce a leggerlo"); };
       img.style.display = "none"; msg.style.display = "none";
       vid.src = V.url; vid.style.display = "block"; vid.play().catch(() => {});
-    } catch (e) { msg.textContent = `Video non disponibile: ${e.message}`; }
+    } catch (e) {
+      if (e.name === "AbortError") return;
+      if (V.list[V.i] === p) playWithDrive(p, "Download non riuscito");
+    }
     return;
   }
   if (!DECODABLE.includes(p.mime)) {
