@@ -1,6 +1,6 @@
 {
-  "versionCode": 9,
-  "versionName": "0.1.9",
+  "versionCode": 11,
+  "versionName": "0.1.11",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Album per anni come su Drive, copertine con le foto più belle (o scelte da te tenendo premuta una foto) e cursore laterale per scorrere la timeline per mesi e anni."
+  "notes": "Preferiti, Eliminate di recente, foto nascoste con impronta, video, condivisione, In questo giorno, ricerca e duplicati. Al primo avvio Google chiede di nuovo il permesso per poter modificare."
 }
