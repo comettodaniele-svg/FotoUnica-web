@@ -105,6 +105,20 @@ main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
 #viewer .actions button { color: #fff; display: grid; justify-items: center; gap: 2px; font-size: 12px; padding: 4px 8px; min-width: 64px; border-radius: 10px; }
 #viewer .actions button:hover { background: rgba(255,255,255,.15); }
 #viewer .actions b { font-size: 20px; line-height: 1; }
+#editor { position: fixed; inset: 0; z-index: 70; background: #000; color: #fff; display: flex; flex-direction: column; }
+#editor[hidden] { display: none; }
+.ed-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); }
+.ed-stage { flex: 1; display: grid; place-items: center; min-height: 0; padding: 8px; position: relative; }
+#edCanvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+#edMsg { position: absolute; color: #ccc; }
+.ed-panel { background: #1c1c1e; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); display: grid; gap: 10px; }
+#edTools { display: flex; gap: 8px; overflow-x: auto; flex-wrap: wrap; }
+#edTools .chip { background: #333; color: #fff; }
+#edTools .chip.on { background: var(--accent); color: var(--accent-text); }
+#edTools label { display: grid; grid-template-columns: 110px 1fr; align-items: center; width: 100%; font-size: 14px; }
+.ed-tabs { display: flex; justify-content: space-evenly; }
+.ed-tabs button { color: #fff; padding: 6px 12px; border-radius: 999px; }
+.ed-tabs button.on { background: #333; }
 #vVid { max-width: 100%; max-height: calc(100% - 80px); display: none; }
 #vMsg { color: #fff; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; display: none; }
 
@@ -256,6 +270,20 @@ input[type=text] {
   <button class="icon-btn nav next" id="vNext" title="Successiva">
     <svg class="i" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
   </button>
+</div>
+
+<div id="editor" hidden>
+  <div class="ed-top">
+    <button class="btn secondary" id="edCancel">Annulla</button>
+    <b>Modifica</b>
+    <button class="btn" id="edSave">Salva copia</button>
+  </div>
+  <div class="ed-stage"><canvas id="edCanvas"></canvas><div id="edMsg" class="muted">Caricamento…</div></div>
+  <div class="ed-panel">
+    <div id="edTools"></div>
+    <div class="ed-tabs"><button data-ed="0">Filtri</button><button data-ed="1">Luce e colore</button><button data-ed="2">Ritaglia</button></div>
+    <div class="muted" style="font-size:12px">L'originale non viene toccato: si salva una copia nella stessa cartella.</div>
+  </div>
 </div>
 
 <dialog id="dlgUpload">
@@ -1177,6 +1205,123 @@ async function sharePhoto(p) {
   } catch (e) { if (e.name !== "AbortError") toast(`Condivisione non riuscita: ${e.message}`, true); }
 }
 
+
+// ---------- modifica delle foto ----------
+const ED_PRESETS = [
+  ["Originale", {}], ["Vivido", { contrast: 1.12, saturation: 1.4 }], ["Caldo", { warmth: 0.3, saturation: 1.1 }],
+  ["Freddo", { warmth: -0.3 }], ["Bianco e nero", { saturation: 0, contrast: 1.1 }],
+  ["Vintage", { saturation: 0.7, warmth: 0.2, contrast: 0.9, brightness: 0.05 }], ["Luminoso", { brightness: 0.12, contrast: 1.05 }],
+];
+const ED_CROPS = [["Originale", null], ["Quadrato", 1], ["4:3", 4 / 3], ["3:2", 3 / 2], ["16:9", 16 / 9], ["3:4", 3 / 4], ["9:16", 9 / 16]];
+const ED_DEFAULT = { rotation: 0, crop: null, brightness: 0, contrast: 1, saturation: 1, warmth: 0 };
+const E = { photo: null, src: null, s: { ...ED_DEFAULT }, tab: 0, timer: 0 };
+
+/** Ruota, ritaglia al centro e applica i colori (stessa formula dell'app Android). */
+function renderEdit(src, s, maxSide) {
+  const scale = Math.min(1, maxSide / Math.max(src.width, src.height));
+  const w0 = Math.round(src.width * scale), h0 = Math.round(src.height * scale);
+  const rot = ((s.rotation % 4) + 4) % 4;
+  const rw = rot % 2 ? h0 : w0, rh = rot % 2 ? w0 : h0;
+  let cw = rw, ch = rh;
+  if (s.crop) { if (rw / rh > s.crop) cw = Math.round(rh * s.crop); else ch = Math.round(rw / s.crop); }
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, cw); c.height = Math.max(1, ch);
+  const ctx = c.getContext("2d");
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.rotate(rot * Math.PI / 2);
+  ctx.drawImage(src, -w0 / 2, -h0 / 2, w0, h0);
+  const img = ctx.getImageData(0, 0, c.width, c.height), d = img.data;
+  const sat = s.saturation, k = s.contrast, t = (-0.5 * k + 0.5 + s.brightness) * 255, w = s.warmth * 40;
+  const lr = 0.213, lg = 0.715, lb = 0.072;
+  const m = [lr * (1 - sat) + sat, lg * (1 - sat), lb * (1 - sat), lr * (1 - sat), lg * (1 - sat) + sat, lb * (1 - sat), lr * (1 - sat), lg * (1 - sat), lb * (1 - sat) + sat];
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    d[i] = (m[0] * r + m[1] * g + m[2] * b) * k + t + w;
+    d[i + 1] = (m[3] * r + m[4] * g + m[5] * b) * k + t + w * 0.3;
+    d[i + 2] = (m[6] * r + m[7] * g + m[8] * b) * k + t - w;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+async function openEditor(p) {
+  E.photo = p; E.s = { ...ED_DEFAULT }; E.tab = 0; E.src = null;
+  $("editor").hidden = false; $("edMsg").textContent = "Caricamento…"; $("edMsg").hidden = false;
+  const cv = $("edCanvas"); cv.width = 0; cv.height = 0;
+  drawEditorTools();
+  try {
+    const blob = await api(p.account, mediaUrl(p)).then((r) => r.blob());
+    E.src = await createImageBitmap(blob, { imageOrientation: "from-image" });
+    $("edMsg").hidden = true;
+    updateEditorPreview();
+  } catch (e) { $("edMsg").textContent = `Impossibile aprire la foto: ${e.message}`; }
+}
+function closeEditor() { $("editor").hidden = true; E.src?.close?.(); E.src = null; }
+function updateEditorPreview() {
+  clearTimeout(E.timer);
+  E.timer = setTimeout(() => {
+    if (!E.src) return;
+    const out = renderEdit(E.src, E.s, 1200), cv = $("edCanvas");
+    cv.width = out.width; cv.height = out.height;
+    cv.getContext("2d").drawImage(out, 0, 0);
+  }, 40);
+}
+function drawEditorTools() {
+  for (const b of document.querySelectorAll(".ed-tabs button")) b.classList.toggle("on", Number(b.dataset.ed) === E.tab);
+  const box = $("edTools");
+  const set = (patch) => { Object.assign(E.s, patch); updateEditorPreview(); drawEditorTools(); };
+  if (E.tab === 0) {
+    box.replaceChildren(...ED_PRESETS.map(([name, preset]) => {
+      const full = { ...ED_DEFAULT, ...preset, rotation: E.s.rotation, crop: E.s.crop };
+      const on = Object.keys(full).every((k) => full[k] === E.s[k]);
+      return el("button", { className: "chip" + (on ? " on" : ""), textContent: name, onclick: () => set(full) });
+    }));
+  } else if (E.tab === 1) {
+    const slider = (label, key, min, max) => {
+      const input = el("input", { type: "range", min, max, step: (max - min) / 100, value: E.s[key] });
+      input.oninput = () => { E.s[key] = Number(input.value); updateEditorPreview(); };
+      return el("label", {}, label, input);
+    };
+    box.replaceChildren(slider("Luminosità", "brightness", -0.5, 0.5), slider("Contrasto", "contrast", 0.5, 1.5),
+      slider("Saturazione", "saturation", 0, 2), slider("Calore", "warmth", -0.5, 0.5));
+  } else {
+    box.replaceChildren(el("button", { className: "chip", textContent: "⟳ Ruota di 90°", onclick: () => set({ rotation: (E.s.rotation + 1) % 4 }) }),
+      ...ED_CROPS.map(([name, ratio]) => el("button", { className: "chip" + (E.s.crop === ratio ? " on" : ""), textContent: name, onclick: () => set({ crop: ratio }) })));
+  }
+}
+async function ensureRootFolder(email, name) {
+  const found = await listAll(email, `name = '${name}' and mimeType = '${FOLDER}' and 'root' in parents and trashed = false`, "id");
+  if (found.length) return found[0].id;
+  const j = await apiJson(email, `${API}/files?fields=id`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, mimeType: FOLDER }) });
+  return j.id;
+}
+async function saveEditor() {
+  const p = E.photo;
+  if (!E.src || !p) return;
+  $("edSave").disabled = true; $("edSave").textContent = "Salvo…";
+  try {
+    const out = renderEdit(E.src, E.s, 4096);
+    const blob = await new Promise((res) => out.toBlob(res, "image/jpeg", 0.92));
+    const folder = p.parent || await ensureRootFolder(p.account, "CloudFoto");
+    const base = p.name.replace(/\.[^.]+$/, "");
+    const meta = { name: `${base}_modificata.jpg`, parents: [folder], ...(p.taken ? { createdTime: new Date(p.taken).toISOString() } : {}) };
+    const boundary = "cloudfoto" + Math.random().toString(36).slice(2);
+    const body = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`,
+      `--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`, blob, `\r\n--${boundary}--`]);
+    await api(p.account, `${UPLOAD_API}?uploadType=multipart&fields=id`, { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body });
+    toast("Copia modificata salvata accanto all'originale");
+    closeEditor(); closeViewer(); refresh();
+  } catch (e) {
+    toast(`Salvataggio non riuscito: ${e.message}`, true);
+  } finally {
+    $("edSave").disabled = false; $("edSave").textContent = "Salva copia";
+  }
+}
+$("edCancel").onclick = closeEditor;
+$("edSave").onclick = saveEditor;
+for (const b of document.querySelectorAll(".ed-tabs button")) b.onclick = () => { E.tab = Number(b.dataset.ed); drawEditorTools(); };
+
 // ---------- visualizzatore ----------
 const V = { list: [], i: 0, zoom: 1, tx: 0, ty: 0, url: null, mode: "normal" };
 function openViewer(list, i, mode = "normal") {
@@ -1211,6 +1356,7 @@ function viewerActions(p) {
   }
   box.replaceChildren(
     b("⤴", "Condividi", () => sharePhoto(cur)),
+    V.mode === "normal" && !cur.video && DECODABLE.includes(cur.mime) ? b("✎", "Modifica", () => openEditor(cur)) : null,
     V.mode === "normal" ? b(cur.starred ? "♥" : "♡", cur.starred ? "Preferita" : "Preferiti", () => { toggleFav(cur); viewerActions(cur); }) : null,
     b("🔒", V.mode === "hidden" ? "Mostra" : "Nascondi", () => { setHiddenPhoto(cur, V.mode !== "hidden"); removeFromViewer(cur); }),
     b("🗑", "Elimina", () => {
@@ -1312,6 +1458,7 @@ $("vNext").onclick = () => step(1);
 $("vOpen").onclick = () => window.open(`https://drive.google.com/file/d/${V.list[V.i].id}/view`, "_blank", "noopener");
 $("vImg").ondblclick = toggleZoom;
 document.addEventListener("keydown", (e) => {
+  if (!$("editor").hidden) { if (e.key === "Escape") closeEditor(); return; }
   if (!$("viewer").classList.contains("on")) return;
   if (e.key === "Escape") closeViewer();
   else if (e.key === "ArrowLeft") step(-1);
