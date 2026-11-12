@@ -23,7 +23,8 @@
   }
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; }
+body { min-height: 100vh; }
 body {
   background: var(--bg); color: var(--text);
   font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -99,6 +100,22 @@ main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
 .error { color: var(--danger); font-size: 13px; }
 .total { font-size: 17px; font-weight: 600; }
 
+#scrub { position: fixed; right: 0; bottom: 0; top: var(--head, 60px); width: 40px; z-index: 20; touch-action: none; user-select: none; cursor: ns-resize; }
+#scrubThumb {
+  position: absolute; right: 6px; top: 0; width: 26px; height: 44px; border-radius: 13px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--surface2) 75%, transparent); color: var(--muted); box-shadow: var(--shadow); font-size: 16px;
+}
+#scrub.drag #scrubThumb { background: var(--accent); color: var(--accent-text); }
+#scrubLabel, #scrubYears { display: none; }
+#scrub.drag #scrubLabel, #scrub.drag #scrubYears { display: block; }
+#scrubLabel {
+  position: absolute; right: 52px; white-space: nowrap; padding: 8px 14px; border-radius: 18px; font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg)); color: var(--text); box-shadow: var(--shadow); pointer-events: none;
+}
+#scrubYears div {
+  position: absolute; right: 40px; font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 85%, transparent); pointer-events: none; white-space: nowrap;
+}
 #drop {
   position: fixed; inset: 0; z-index: 40; display: none; place-items: center; pointer-events: none;
   background: color-mix(in srgb, var(--accent) 22%, transparent); border: 4px dashed var(--accent);
@@ -179,6 +196,8 @@ input[type=text] {
 <main id="main"></main>
 <div id="mapWrap" hidden><div id="map"></div><div id="mapInfo" class="muted"></div></div>
 
+<div id="scrub" hidden><div id="scrubYears"></div><div id="scrubLabel"></div><div id="scrubThumb">⇕</div></div>
+
 <div id="drop"><div>Rilascia le cartelle per caricarle</div></div>
 
 <div id="upload">
@@ -220,6 +239,12 @@ input[type=text] {
   <input type="file" id="inFiles" accept="image/*" multiple hidden>
 </dialog>
 
+<dialog id="dlgCover">
+  <h3>Usa come copertina</h3>
+  <div id="coverChoices" style="display:grid;gap:8px"></div>
+  <div class="actions"><button class="btn secondary" onclick="this.closest('dialog').close()">Annulla</button></div>
+</dialog>
+
 <dialog id="dlgSetup">
   <h3>Configurazione</h3>
   <p class="muted" style="margin-top:0">Incolla il Client ID del client "Applicazione web" creato su Google Cloud.</p>
@@ -248,7 +273,9 @@ const S = {
   tokens: JSON.parse(sessionStorage.getItem("fu.tokens") || "{}"), // email -> {token, exp}
   info: {},        // email -> {usage, limit, error}
   photos: [],
-  albums: [],
+  roots: [],       // cartelle principali (es. anni) con le sottocartelle
+  folderIndex: {},
+  path: [],        // cartelle aperte nella scheda Album ("foto:<id>" = solo le foto sciolte)
   tab: "photos",
   album: null,
   loading: false,
@@ -361,12 +388,12 @@ async function loadAccount(email) {
   const q = about.storageQuota || {};
   S.info[email] = { usage: Number(q.usage || 0), limit: q.limit ? Number(q.limit) : Infinity };
   const [folders, files] = await Promise.all([
-    listAll(email, `mimeType = '${FOLDER}' and trashed = false`, "id,name"),
+    listAll(email, `mimeType = '${FOLDER}' and trashed = false`, "id,name,parents"),
     listAll(email, "mimeType contains 'image/' and trashed = false",
       "id,name,mimeType,thumbnailLink,parents,createdTime,imageMediaMetadata(time,location)"),
   ]);
   return {
-    folders: Object.fromEntries(folders.map((f) => [f.id, f.name])),
+    folders: Object.fromEntries(folders.map((f) => [f.id, { id: f.id, name: f.name || "Senza nome", parent: f.parents?.[0] || null, account: email }])),
     photos: files.map((f) => ({
       id: f.id, account: email, name: f.name || "", mime: f.mimeType || "",
       thumb: f.thumbnailLink || null,
@@ -399,15 +426,11 @@ async function refresh() {
   photos.sort((a, b) => b.taken - a.taken);
   S.photos = photos;
   photosVersion++;
-  const groups = new Map();
-  for (const p of photos) {
-    if (!p.parent) continue;
-    if (!groups.has(p.parent)) groups.set(p.parent, []);
-    groups.get(p.parent).push(p);
-  }
-  S.albums = [...groups].map(([id, list]) => ({ id, name: folders[id] || "Senza nome", account: list[0].account, photos: list }))
-    .sort((a, b) => b.photos[0].taken - a.photos[0].taken);
-  if (S.album) S.album = S.albums.find((a) => a.id === S.album.id) || null;
+  S.roots = buildTree(folders, photos);
+  S.folderIndex = {};
+  const index = (n) => { S.folderIndex[n.id] = n; n.subs.forEach(index); };
+  S.roots.forEach(index);
+  S.path = S.path.filter((id) => S.folderIndex[id.replace(/^foto:/, "")]);
   S.loading = false; $("progressbar").classList.remove("on");
   render();
 }
@@ -477,6 +500,11 @@ const el = (tag, props = {}, ...kids) => {
 };
 
 function render() {
+  renderInner();
+  setupScrubber();
+}
+
+function renderInner() {
   for (const b of $("tabs").children) b.classList.toggle("active", b.dataset.tab === S.tab);
   const onMap = S.tab === "map";
   $("mapWrap").hidden = !onMap;
@@ -499,15 +527,20 @@ function render() {
   }
 
   if (S.tab === "accounts") return renderAccounts(main);
-  if (S.tab === "albums" && !S.album) return renderAlbums(main);
-
-  const list = S.tab === "albums" ? S.album.photos : S.photos;
+  let list = S.photos, longPress = null;
   if (S.tab === "albums") {
+    const top = S.path[S.path.length - 1];
+    const node = top && S.folderIndex[top.replace(/^foto:/, "")];
+    if (!node) return renderFolders(main, S.roots, null);
+    const photosOnly = top.startsWith("foto:");
     main.append(el("div", { className: "album-head" },
       el("button", { className: "icon-btn", title: "Indietro", innerHTML: '<svg class="i" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
-        onclick: () => { S.album = null; render(); } }),
-      el("h2", { textContent: S.album.name }),
-      el("span", { className: "muted", textContent: `${S.album.photos.length} foto` })));
+        onclick: () => { S.path.pop(); render(); } }),
+      el("h2", { textContent: photosOnly ? `Altre foto in «${node.name}»` : node.name }),
+      el("span", { className: "muted", textContent: `${(photosOnly ? node.photos : node.all).length} foto` })));
+    if (!photosOnly && node.subs.length) return renderFolders(main, node.subs, node);
+    list = photosOnly ? node.photos : node.all;
+    longPress = (p) => coverMenu(p);
   }
   if (!list.length) {
     if (!S.loading) main.append(el("div", { className: "empty" },
@@ -524,26 +557,103 @@ function render() {
     if (m !== current) {
       current = m;
       grid = el("div", { className: "grid" });
-      main.append(el("section", { className: "month" }, el("h3", { textContent: m }), grid));
+      const sec = el("section", { className: "month" }, el("h3", { textContent: m }), grid);
+      sec.dataset.label = m;
+      sec.dataset.year = p.taken ? String(new Date(p.taken).getFullYear()) : "?";
+      main.append(sec);
     }
-    grid.append(tile(p, () => openViewer(list, i)));
+    const t = tile(p, () => openViewer(list, i));
+    if (longPress) t.addEventListener("contextmenu", (e) => { e.preventDefault(); longPress(p); });
+    grid.append(t);
   });
 }
 
-function renderAlbums(main) {
-  if (!S.albums.length) {
+// ---------- cartelle e copertine ----------
+/** Albero delle cartelle che contengono foto (es. 2024 → Vacanza mare), dalla più recente. */
+function buildTree(folders, photos) {
+  const direct = {}, children = {}, memo = {};
+  for (const p of photos) if (p.parent) (direct[p.parent] ||= []).push(p);
+  for (const f of Object.values(folders)) (children[f.parent] ||= []).push(f);
+  const build = (f, depth) => {
+    if (f.id in memo) return memo[f.id];
+    if (depth > 30) return null;
+    const subs = (children[f.id] || []).map((c) => build(c, depth + 1)).filter(Boolean)
+      .sort((a, b) => b.all[0].taken - a.all[0].taken);
+    const own = direct[f.id] || [];
+    let node = null;
+    if (subs.length || own.length) {
+      const seen = new Set();
+      const all = [...own, ...subs.flatMap((x) => x.all)].filter((p) => !seen.has(p.id) && seen.add(p.id))
+        .sort((a, b) => b.taken - a.taken);
+      node = { id: f.id, name: f.name, account: f.account, subs, photos: own, all };
+    }
+    return (memo[f.id] = node);
+  };
+  const roots = Object.values(folders).filter((f) => !f.parent || !folders[f.parent]).map((f) => build(f, 0)).filter(Boolean);
+  // cartelle principali con lo stesso nome in account diversi (es. "2024") diventano una sola
+  const byName = new Map();
+  for (const r of roots) {
+    const k = r.name.trim().toLowerCase();
+    if (!byName.has(k)) byName.set(k, []);
+    byName.get(k).push(r);
+  }
+  const merged = [...byName.values()].map((g) => {
+    if (g.length === 1) return g[0];
+    const seen = new Set();
+    const all = g.flatMap((x) => x.all).filter((p) => !seen.has(p.id) && seen.add(p.id)).sort((a, b) => b.taken - a.taken);
+    return { id: "unito:" + g[0].name.trim().toLowerCase(), name: g[0].name, account: g[0].account,
+      subs: g.flatMap((x) => x.subs).sort((a, b) => b.all[0].taken - a.all[0].taken),
+      photos: g.flatMap((x) => x.photos).sort((a, b) => b.taken - a.taken), all };
+  });
+  return merged.sort((a, b) => b.all[0].taken - a.all[0].taken);
+}
+
+const manualCovers = (() => { try { return JSON.parse(localStorage.getItem("fu.covers") || "{}"); } catch { return {}; } })();
+const saveCovers = () => { try { localStorage.setItem("fu.covers", JSON.stringify(manualCovers)); } catch {} };
+/** Copertina: quella scelta a mano, altrimenti una foto ben esposta presa a metà del periodo della cartella. */
+function coverOf(node) {
+  const chosen = manualCovers[node.id] && node.all.find((p) => p.id === manualCovers[node.id]);
+  if (chosen) return chosen;
+  // preferisce JPEG con miniatura (i RAW spesso non ce l'hanno), presa nel mezzo della cartella
+  const good = node.all.filter((p) => p.thumb && !RAW_EXT.includes(extOf(p.name)));
+  const pool = good.length ? good : node.all;
+  return pool[Math.floor(pool.length / 2)];
+}
+
+function coverMenu(photo) {
+  const path = S.path.map((id) => S.folderIndex[id.replace(/^foto:/, "")]).filter(Boolean)
+    .filter((n, i, a) => a.findIndex((x) => x.id === n.id) === i).reverse();
+  const dlg = $("dlgCover");
+  const box = $("coverChoices");
+  box.replaceChildren(...path.map((n) => el("button", { className: "btn secondary", textContent: `di «${n.name}»`,
+    onclick: () => { manualCovers[n.id] = photo.id; saveCovers(); dlg.close(); toast(`Copertina di «${n.name}» aggiornata`); } })));
+  dlg.showModal();
+}
+
+function renderFolders(main, folders, parent) {
+  if (!folders.length && !(parent?.photos.length)) {
     if (!S.loading) main.append(el("div", { className: "empty" },
       el("h2", { textContent: "Nessun album" }),
-      el("p", { textContent: "Ogni cartella di Google Drive con delle foto diventa un album." })));
+      el("p", { textContent: "Ogni cartella di Google Drive con delle foto diventa un album: per esempio una cartella per anno con dentro gli eventi." })));
     return;
   }
   const wrap = el("div", { className: "albums" });
-  for (const a of S.albums) {
-    const open = () => { S.album = a; render(); window.scrollTo(0, 0); };
-    const t = tile(a.photos[0], null);
-    wrap.append(el("div", { className: "album", onclick: open }, t,
-      el("b", { textContent: a.name }),
-      el("small", { textContent: `${a.photos.length} foto · ${a.account.split("@")[0]}` })));
+  const card = (cover, title, subtitle, open, onMenu) => {
+    const t = tile(cover, null);
+    const c = el("div", { className: "album", onclick: open }, t, el("b", { textContent: title }), el("small", { textContent: subtitle }));
+    if (onMenu) c.addEventListener("contextmenu", (e) => { e.preventDefault(); onMenu(); });
+    return c;
+  };
+  for (const f of folders) {
+    const sub = `${f.all.length} foto` + (f.subs.length ? ` · ${f.subs.length} cartelle` : "");
+    wrap.append(card(coverOf(f), f.name, sub, () => { S.path.push(f.id); render(); window.scrollTo(0, 0); }, () => {
+      if (!manualCovers[f.id]) return toast("Per scegliere la copertina apri la cartella e tieni premuta (o clic destro su) una foto.");
+      if (confirm(`Tornare alla copertina automatica per «${f.name}»?`)) { delete manualCovers[f.id]; saveCovers(); render(); }
+    }));
+  }
+  if (parent?.photos.length) {
+    wrap.append(card(parent.photos[0], "Altre foto", `${parent.photos.length} foto in «${parent.name}»`,
+      () => { S.path.push("foto:" + parent.id); render(); window.scrollTo(0, 0); }, null));
   }
   main.append(wrap);
 }
@@ -663,6 +773,74 @@ async function showMap() {
     : geo.length ? `${geo.length} foto su ${S.photos.length} hanno la posizione.`
     : "Nessuna foto ha la posizione GPS. Le foto del cellulare di solito ce l'hanno; quelle della fotocamera solo se la posizione era attiva.";
 }
+
+
+// ---------- cursore laterale della timeline ----------
+const Scrub = { sections: [], dragging: false };
+function setupScrubber() {
+  const box = $("scrub");
+  document.documentElement.style.setProperty("--head", `${document.querySelector("header").offsetHeight + 4}px`);
+  const secs = [...document.querySelectorAll("#main section.month")];
+  const count = document.querySelectorAll("#main section.month .tile").length;
+  box.hidden = S.tab === "map" || S.tab === "accounts" || count <= 40;
+  Scrub.sections = secs;
+  if (!box.hidden) requestAnimationFrame(updateScrubThumb);
+}
+const scrollMax = () => Math.max(1, document.documentElement.scrollHeight - innerHeight);
+function scrubGeometry() {
+  const h = $("scrub").clientHeight, thumb = 44;
+  return { range: Math.max(1, h - thumb), thumb };
+}
+function labelAt(y) {
+  let label = Scrub.sections[0]?.dataset.label || "";
+  for (const s of Scrub.sections) { if (s.offsetTop - 140 <= y) label = s.dataset.label; else break; }
+  return label;
+}
+function updateScrubThumb() {
+  if ($("scrub").hidden) return;
+  const { range } = scrubGeometry();
+  const f = Math.min(1, Math.max(0, scrollY / scrollMax()));
+  $("scrubThumb").style.top = `${f * range}px`;
+  if (Scrub.dragging) {
+    $("scrubLabel").textContent = labelAt(scrollY);
+    $("scrubLabel").style.top = `${f * range + 22 - 18}px`;
+  }
+}
+function drawYears() {
+  const { range, thumb } = scrubGeometry();
+  const out = [];
+  let lastYear = null, lastY = -999;
+  for (const s of Scrub.sections) {
+    if (s.dataset.year === lastYear) continue;
+    lastYear = s.dataset.year;
+    const y = Math.min(1, (s.offsetTop - 140) / scrollMax()) * range + thumb / 2 - 9;
+    if (y - lastY < 22) continue;
+    lastY = y;
+    out.push(el("div", { textContent: lastYear, style: `top:${Math.max(0, y)}px` }));
+  }
+  $("scrubYears").replaceChildren(...out);
+}
+window.addEventListener("scroll", updateScrubThumb, { passive: true });
+window.addEventListener("resize", updateScrubThumb);
+(() => {
+  const box = $("scrub");
+  const jump = (clientY) => {
+    const { range, thumb } = scrubGeometry();
+    const f = Math.min(1, Math.max(0, (clientY - box.getBoundingClientRect().top - thumb / 2) / range));
+    window.scrollTo(0, f * scrollMax());
+    updateScrubThumb();
+  };
+  box.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    box.setPointerCapture(e.pointerId);
+    Scrub.dragging = true; box.classList.add("drag");
+    drawYears(); jump(e.clientY);
+  });
+  box.addEventListener("pointermove", (e) => { if (Scrub.dragging) jump(e.clientY); });
+  const end = () => { Scrub.dragging = false; box.classList.remove("drag"); };
+  box.addEventListener("pointerup", end);
+  box.addEventListener("pointercancel", end);
+})();
 
 // ---------- visualizzatore ----------
 const V = { list: [], i: 0, zoom: 1, tx: 0, ty: 0, url: null };
@@ -1041,7 +1219,7 @@ $("setupSave").onclick = () => {
 $("tabs").onclick = (e) => {
   const b = e.target.closest("button[data-tab]");
   if (!b) return;
-  S.tab = b.dataset.tab; S.album = null; render(); window.scrollTo(0, 0);
+  S.tab = b.dataset.tab; S.path = []; render(); window.scrollTo(0, 0);
 };
 $("btnRefresh").onclick = () => refresh();
 

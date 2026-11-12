@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "0.1.4",
+  "versionCode": 7,
+  "versionName": "0.1.7",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Pizzico con le dita: ingrandisci e riduci le foto, e cambia la dimensione delle miniature nella galleria."
+  "notes": "Album per anni come su Drive, copertine con le foto più belle (o scelte da te tenendo premuta una foto) e cursore laterale per scorrere la timeline per mesi e anni."
 }
