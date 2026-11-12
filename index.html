@@ -95,6 +95,7 @@ main { padding: 8px 16px 120px; max-width: 1600px; margin: 0 auto; }
 .searchbar { display: flex; gap: 8px; margin: 10px 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
 .chip { padding: 6px 14px; border-radius: 999px; background: var(--surface2); font-weight: 600; }
+.chip.on { background: color-mix(in srgb, var(--accent) 22%, var(--bg)); color: var(--accent); }
 .dup { background: var(--surface); border-radius: 14px; padding: 12px; margin: 10px 0; }
 .dup .row { display: flex; gap: 6px; }
 .dup .tile { width: 80px; border-radius: 8px; }
@@ -925,8 +926,37 @@ function folderMenu(f) {
   dlg.showModal();
 }
 
+// ---------- ordine delle cartelle ----------
+const FOLDER_SORTS = [["recenti", "Più recenti"], ["vecchie", "Più vecchie"], ["nome", "A–Z"]];
+let folderSort = (() => { try { return localStorage.getItem("fu.folderSort") || "recenti"; } catch { return "recenti"; } })();
+/** Data della cartella: anno (e mese) nel nome, es. "2024" o "2023-07 Mare"; altrimenti la data di mezzo delle foto. */
+function folderDate(f) {
+  const m = /(?<!\d)(19[5-9]\d|20\d\d)(?:[-_. ]?(0[1-9]|1[0-2])(?!\d))?/.exec(f.name);
+  if (m) return new Date(Number(m[1]), (Number(m[2]) || 1) - 1, 1).getTime();
+  const d = f.all.map((p) => p.taken).filter(Boolean).sort((a, b) => a - b);
+  return d.length ? d[Math.floor(d.length / 2)] : 0;
+}
+const byName = (a, b) => a.name.localeCompare(b.name, "it", { numeric: true, sensitivity: "base" });
+function sortFolders(list) {
+  const l = [...list];
+  if (folderSort === "nome") return l.sort(byName);
+  const dir = folderSort === "vecchie" ? 1 : -1;
+  return l.sort((a, b) => dir * (folderDate(a) - folderDate(b)) || byName(a, b));
+}
+function sortChips() {
+  const row = el("div", { className: "chips" });
+  for (const [k, label] of FOLDER_SORTS) {
+    row.append(el("button", { className: "chip" + (folderSort === k ? " on" : ""), textContent: label, onclick: () => {
+      folderSort = k; try { localStorage.setItem("fu.folderSort", k); } catch {} render();
+    } }));
+  }
+  return row;
+}
+
 function renderFolders(main, folders, parent) {
   if (!parent) main.append(collectionsRow(), el("div", { className: "section-title", textContent: "Cartelle" }));
+  if (folders.length > 1) main.append(sortChips());
+  folders = sortFolders(folders);
   if (!folders.length && !(parent?.photos.length)) {
     if (!S.loading) main.append(el("div", { className: "empty" },
       el("h2", { textContent: "Nessun album" }),

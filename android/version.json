@@ -1,6 +1,6 @@
 {
-  "versionCode": 15,
-  "versionName": "0.1.15",
+  "versionCode": 16,
+  "versionName": "0.1.16",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Video: se si sente solo l'audio o resta nero, l'app se ne accorge e propone di guardarlo con Google Drive o con un altro lettore come VLC."
+  "notes": "Cartelle in ordine: per anno (anche quello scritto nel nome) oppure alfabetico. Scegli l'ordine in cima alla scheda Album."
 }
