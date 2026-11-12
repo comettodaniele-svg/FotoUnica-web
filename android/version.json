@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "0.1.11",
+  "versionCode": 13,
+  "versionName": "0.1.13",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Preferiti, Eliminate di recente, foto nascoste con impronta, video, condivisione, In questo giorno, ricerca e duplicati. Al primo avvio Google chiede di nuovo il permesso per poter modificare."
+  "notes": "Backup automatico delle foto del telefono (Account), ricerca per contenuto (spiaggia, cane, neve…) e modifica delle foto con filtri, luce, rotazione e ritaglio."
 }
