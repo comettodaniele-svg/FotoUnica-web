@@ -1,6 +1,6 @@
 {
-  "versionCode": 16,
-  "versionName": "0.1.16",
+  "versionCode": 17,
+  "versionName": "0.1.17",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Cartelle in ordine: per anno (anche quello scritto nel nome) oppure alfabetico. Scegli l'ordine in cima alla scheda Album."
+  "notes": "Nuova icona. Video: scegli una volta l'app con cui aprirli (es. VLC) e partono subito lì, senza scaricarli. Si cambia in Account › Video."
 }
