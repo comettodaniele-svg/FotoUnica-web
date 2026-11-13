@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "0.1.17",
+  "versionCode": 18,
+  "versionName": "0.1.18",
   "apk": "https://comettodaniele-svg.github.io/FotoUnica-web/android/CloudFoto.apk",
-  "notes": "Nuova icona. Video: scegli una volta l'app con cui aprirli (es. VLC) e partono subito lì, senza scaricarli. Si cambia in Account › Video."
+  "notes": "Video con VLC e le altre app: ora partono (CloudFoto resta attiva mentre li guardi, con una notifica). Se un video non parte, c'è «Scarica il video e aprilo» e il motivo dell'errore."
 }
